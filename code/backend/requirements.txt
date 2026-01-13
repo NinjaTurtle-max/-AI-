@@ -1,0 +1,26 @@
+# --- 1. 서버 및 API 구축 ---
+fastapi
+uvicorn
+requests
+python-dotenv
+pydantic
+
+# --- 2. LLM (AI 약사 상담) ---
+google-generativeai
+
+# --- 3. 객체 탐지 (YOLOv8) ---
+ultralytics
+
+# --- 4. 미세 식별 (ViT & Deep Learning) ---
+transformers
+torch
+torchvision
+
+# --- 5. 이미지 처리 및 전처리 ---
+opencv-python
+Pillow
+numpy
+
+# --- 6. 데이터 분석 및 핸들링 (기본 라이브러리) ---
+pandas
+matplotlib
