@@ -1,4 +1,5 @@
 import React, { useMemo, useRef, useState } from "react";
+import { Ionicons } from "@expo/vector-icons";
 import {
   SafeAreaView,
   View,
@@ -170,36 +171,6 @@ export default function App() {
     if (!res.canceled) setPreviewUri(res.assets[0].uri);
   };
 
-  const handlePickedImage = async (uri: string) => {
-    setPreviewUri(uri);
-    addMsg({ 
-      id: String(Date.now()), 
-      role: "user", 
-      type: "image",
-      uri, 
-      text: "약 사진을 보냈어요." 
-    });
-
-    setLoading(true);
-    try {
-      const identify = await fakeIdentify(uri);
-      lastIdentifyRef.current = identify;
-
-      addMsg({ id: String(Date.now() + 1), role: "assistant", type: "identify", payload: identify });
-
-      if (identify.best_match) {
-        addMsg({
-          id: String(Date.now() + 2),
-          role: "assistant",
-          type: "text",
-          text: `가장 유력한 약은 "${identify.best_match.name}"입니다.\n어떤 정보가 궁금하신가요?`,
-        });
-        addMsg({ id: String(Date.now() + 3), role: "assistant", type: "topic", payload: { topics } });
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const onPickTopic = async (topic: string) => {
     const identify = lastIdentifyRef.current;
@@ -260,11 +231,27 @@ export default function App() {
     <SafeAreaView style={styles.container}>
       <FlatList data={messages} keyExtractor={(m) => m.id} renderItem={renderItem} contentContainerStyle={styles.list} />
       <View style={styles.inputBar}>
-        <Pressable style={styles.photoBtn} onPress={pickFromCamera} disabled={loading}>
-          <Text>📸</Text>
+        <Pressable 
+          onPress={pickFromCamera} 
+          disabled={loading}
+          style={({ pressed }) => [
+            styles.photoBtn,
+            pressed && styles.photoBtnPressed,
+            loading && { opacity: 0.3 },
+          ]}
+        >
+         <Ionicons name="camera" size={22} color="#000" />
         </Pressable>
-        <Pressable style={styles.photoBtn} onPress={pickFromGallery} disabled={loading}>
-          <Text>🖼️</Text>
+        <Pressable 
+          onPress={pickFromGallery} 
+          disabled={loading}
+          style={({ pressed }) => [
+            styles.photoBtn,
+            pressed && styles.photoBtnPressed,
+            loading && { opacity: 0.3 },
+          ]}
+        >
+          <Ionicons name="image" size={22} color="#000" />
         </Pressable>
 
         {previewUri && (
@@ -325,5 +312,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-
+  photoBtnPressed: {
+    transform: [{ scale: 0.92 }],
+    backgroundColor: "#e0e0e0",
+  },
+  
 });
