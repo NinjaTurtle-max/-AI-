@@ -8,6 +8,7 @@ import {
   Pressable,
   ActivityIndicator,
   StyleSheet,
+  Image,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 
@@ -22,7 +23,7 @@ type IdentifyResult = {
 
 type Msg =
   | { id: string; role: "user"; type: "text"; text: string }
-  | { id: string; role: "user"; type: "image"; text: string }
+  | { id: string; role: "user"; type: "image"; uri: string }
   | { id: string; role: "assistant"; type: "text"; text: string }
   | { id: string; role: "assistant"; type: "identify"; payload: IdentifyResult }
   | { id: string; role: "assistant"; type: "topic"; payload: { topics: string[] } };
@@ -88,13 +89,55 @@ export default function App() {
   ]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [previewUri, setPreviewUri] = useState<string | null>(null); //
 
   const lastIdentifyRef = useRef<IdentifyResult | null>(null);
   const topics = useMemo(() => ["금기사항", "복용방법", "효과"], []);
 
   const addMsg = (m: Msg) => setMessages((prev) => [...prev, m]);
 
-  const onSendText = () => {
+
+  const sendpreviewUri = async (uri: string) => {
+    addMsg({
+      id: String(Date.now()),
+      role: "user",
+      type: "image",
+      uri,
+      text: "약 사진을 보냈어요.",
+    });
+  
+    setLoading(true);
+    try {
+      const identify = await fakeIdentify(uri);
+      lastIdentifyRef.current = identify;
+  
+      addMsg({ id: String(Date.now() + 1), role: "assistant", type: "identify", payload: identify });
+  
+      if (identify.best_match) {
+        addMsg({
+          id: String(Date.now() + 2),
+          role: "assistant",
+          type: "text",
+          text: `가장 유력한 약은 "${identify.best_match.name}"입니다.\n어떤 정보가 궁금하신가요?`,
+        });
+        addMsg({ id: String(Date.now() + 3), role: "assistant", type: "topic", payload: { topics } });
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+
+  const onSend = async () => {
+    if(loading) return;
+
+    if(previewUri) {
+      const uri = previewUri;
+      setPreviewUri(null);
+      await sendpreviewUri(uri);
+      return;
+    }
+    
     const text = input.trim();
     if (!text) return;
     setInput("");
@@ -114,7 +157,7 @@ export default function App() {
       return;
     }
     const res = await ImagePicker.launchCameraAsync({ quality: 0.8 });
-    if (!res.canceled) await handlePickedImage(res.assets[0].uri);
+    if (!res.canceled) setPreviewUri(res.assets[0].uri);
   };
 
   const pickFromGallery = async () => {
@@ -124,11 +167,19 @@ export default function App() {
       return;
     }
     const res = await ImagePicker.launchImageLibraryAsync({ quality: 0.8 });
-    if (!res.canceled) await handlePickedImage(res.assets[0].uri);
+    if (!res.canceled) setPreviewUri(res.assets[0].uri);
   };
 
   const handlePickedImage = async (uri: string) => {
-    addMsg({ id: String(Date.now()), role: "user", type: "image", text: "약 사진을 보냈어요." });
+    setPreviewUri(uri);
+    addMsg({ 
+      id: String(Date.now()), 
+      role: "user", 
+      type: "image",
+      uri, 
+      text: "약 사진을 보냈어요." 
+    });
+
     setLoading(true);
     try {
       const identify = await fakeIdentify(uri);
@@ -166,6 +217,14 @@ export default function App() {
   };
 
   const renderItem = ({ item }: { item: Msg }) => {
+    if (item.type === "image") {
+      return (
+        <View style={[styles.bubble, styles.userBubble]}>
+          <Image source={{ uri: item.uri }} style={styles.chatImage} />
+          {!!item.text && <Text style={[styles.msgText, { marginTop: 8 }]}>{item.text}</Text>}
+        </View>
+      );
+    }
     if (item.type === "identify") {
       const p = item.payload;
       return (
@@ -207,10 +266,28 @@ export default function App() {
         <Pressable style={styles.photoBtn} onPress={pickFromGallery} disabled={loading}>
           <Text>🖼️</Text>
         </Pressable>
-        <TextInput value={input} onChangeText={setInput} placeholder="질문을 입력하세요..." style={styles.input} editable={!loading} />
-        <Pressable style={styles.sendBtn} onPress={onSendText} disabled={loading}>
+
+        {previewUri && (
+      <View style={styles.previewWrap}>
+        <Image source={{ uri: previewUri }} style={styles.previewThumb} />
+          <Pressable onPress={() => setPreviewUri(null)} style={styles.previewX} disabled={loading}>
+            <Text style={{ color: "#fff", fontSize: 11 }}>✕</Text>
+          </Pressable>
+      </View>
+  )}
+
+        <TextInput 
+          value={input} 
+          onChangeText={setInput} 
+          placeholder="질문을 입력하세요..." 
+          style={styles.input} 
+          editable={!loading} 
+        />
+
+        <Pressable style={styles.sendBtn} onPress={onSend} disabled={loading}>
           <Text style={styles.sendBtnText}>전송</Text>
         </Pressable>
+
         {loading && <ActivityIndicator style={{ marginLeft: 8 }} />}
       </View>
     </SafeAreaView>
@@ -234,4 +311,19 @@ const styles = StyleSheet.create({
   input: { flex: 1, paddingVertical: 10, paddingHorizontal: 12, backgroundColor: "#fafafa", borderRadius: 12 },
   sendBtn: { marginLeft: 8, paddingVertical: 10, paddingHorizontal: 14, borderRadius: 12, backgroundColor: "#111" },
   sendBtnText: { color: "#fff", fontWeight: "700" },
+  chatImage: { width: 220, height: 220, borderRadius: 12, backgroundColor: "#ddd" },
+  previewWrap: { width: 44, height: 44, marginRight: 8, position: "relative" },
+  previewThumb: { width: 44, height: 44, borderRadius: 10, backgroundColor: "#ddd" },
+  previewX: {
+    position: "absolute",
+    top: -6,
+    right: -6,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: "#111",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
 });
