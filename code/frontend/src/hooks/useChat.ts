@@ -42,6 +42,16 @@ export function useChat() {
   const pushTopics = (t: string[]) =>
     addMsg({ id: makeId(), role: "assistant", type: "topic", payload: { topics: t } });
 
+  const pushTyping = () => {
+    const id = makeId();
+    addMsg({ id, role: "assistant", type: "typing"});
+    return id;
+  };
+
+  const removeById = (id: string) => {
+    setMessages((prev) => prev.filter((m) => m.id !== id));
+  }
+
   // ===== 비즈니스 로직 =====
   const identifyAndRespond = async (uri: string) => {
     const identify = await fakeIdentify(uri);
@@ -59,10 +69,13 @@ export function useChat() {
 
   const sendImage = async (uri: string) => {
     pushUserImage(uri, "약 사진을 보냈어요.");
+
+    const typingId = pushTyping();
     setLoading(true);
     try {
       await identifyAndRespond(uri);
     } finally {
+      removeById(typingId)
       setLoading(false);
     }
   };
@@ -95,9 +108,11 @@ export function useChat() {
 
     pushUserText(topic);
 
+    const typingId = pushTyping();
     setLoading(true);
     try {
       const answer = await callConsultationApi(identify.best_match.id, topic);
+      removeById(typingId)
       pushAssistantText(answer);
     } finally {
       setLoading(false);

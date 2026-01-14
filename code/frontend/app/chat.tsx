@@ -103,4 +103,21 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   photoBtnPressed: { transform: [{ scale: 0.92 }], backgroundColor: "#e0e0e0" },
+  typingBubble: {
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 18,
+  },
+  dotsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  dot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: "#999",
+  },
+  
 });

@@ -2,6 +2,7 @@ import React from "react";
 import { Image, Text, View } from "react-native";
 import { Msg } from "../types/chat";
 import { TopicChips } from "./TopicChips";
+import { TypingBubble } from "./TypingBubble";
 
 export function ChatItem({
   item,
@@ -43,6 +44,11 @@ export function ChatItem({
       <TopicChips topics={item.payload.topics} onPick={onPickTopic} disabled={loading} styles={styles} />
     );
   }
+  
+  if (item.type === "typing") {
+    return <TypingBubble styles={styles} />;
+  }
+  
 
   const isUser = item.role === "user";
   return (
@@ -50,4 +56,5 @@ export function ChatItem({
       <Text style={styles.msgText}>{item.text}</Text>
     </View>
   );
+  
 }
