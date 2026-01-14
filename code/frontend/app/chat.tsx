@@ -24,7 +24,7 @@ type IdentifyResult = {
 
 type Msg =
   | { id: string; role: "user"; type: "text"; text: string }
-  | { id: string; role: "user"; type: "image"; uri: string }
+  | { id: string; role: "user"; type: "image"; uri: string; text?: string}
   | { id: string; role: "assistant"; type: "text"; text: string }
   | { id: string; role: "assistant"; type: "identify"; payload: IdentifyResult }
   | { id: string; role: "assistant"; type: "topic"; payload: { topics: string[] } };
@@ -79,6 +79,24 @@ async function callConsultationApi(classId: string, topic: string): Promise<stri
 }
 
 export default function App() {
+  const pushUserText = (text: string) =>
+    addMsg({ id: makeId(), role: "user", type: "text", text });
+  
+  const pushUserImage = (uri: string) =>
+    addMsg({ id: makeId(), role: "user", type: "image", uri });
+  
+  const pushAssistantText = (text: string) =>
+    addMsg({ id: makeId(), role: "assistant", type: "text", text });
+
+  const pushIdentify = (payload: IdentifyResult) =>
+    addMsg({ id: makeId(), role: "assistant", type: "identify", payload });
+  
+  const pushTopics = (topics: string[]) =>
+    addMsg({ id:makeId(), role: "assistant", type: "topic", payload: { topics } });
+  
+  const idSeqRef = useRef(0);
+  const makeId = () => `${Date.now()}-${idSeqRef.current++}`;
+
   const [messages, setMessages] = useState<Msg[]>([
     {
       id: "m0",
@@ -97,36 +115,31 @@ export default function App() {
 
   const addMsg = (m: Msg) => setMessages((prev) => [...prev, m]);
 
-
-  const sendpreviewUri = async (uri: string) => {
-    addMsg({
-      id: String(Date.now()),
-      role: "user",
-      type: "image",
-      uri,
-      text: "약 사진을 보냈어요.",
-    });
+  const identifyAndRespond = async (uri: string) => {
+    const identify = await fakeIdentify(uri);
+    lastIdentifyRef.current = identify;
+  
+    pushIdentify(identify);
+  
+    if (identify.best_match) {
+      pushAssistantText(
+        `가장 유력한 약은 "${identify.best_match.name}"입니다.\n어떤 정보가 궁금하신가요?`
+      );
+      pushTopics(topics);
+    }
+  };
+  
+  const sendImageMessage = async (uri: string) => {
+    pushUserImage(uri);
   
     setLoading(true);
     try {
-      const identify = await fakeIdentify(uri);
-      lastIdentifyRef.current = identify;
-  
-      addMsg({ id: String(Date.now() + 1), role: "assistant", type: "identify", payload: identify });
-  
-      if (identify.best_match) {
-        addMsg({
-          id: String(Date.now() + 2),
-          role: "assistant",
-          type: "text",
-          text: `가장 유력한 약은 "${identify.best_match.name}"입니다.\n어떤 정보가 궁금하신가요?`,
-        });
-        addMsg({ id: String(Date.now() + 3), role: "assistant", type: "topic", payload: { topics } });
-      }
+      await identifyAndRespond(uri);
     } finally {
       setLoading(false);
     }
   };
+  
 
 
   const onSend = async () => {
@@ -135,20 +148,15 @@ export default function App() {
     if(previewUri) {
       const uri = previewUri;
       setPreviewUri(null);
-      await sendpreviewUri(uri);
+      await sendImageMessage(uri);
       return;
     }
     
     const text = input.trim();
     if (!text) return;
     setInput("");
-    addMsg({ id: String(Date.now()), role: "user", type: "text", text });
-    addMsg({
-      id: String(Date.now() + 1),
-      role: "assistant",
-      type: "text",
-      text: "먼저 약 사진을 찍거나 갤러리에서 선택해주세요!",
-    });
+    pushUserText(text);
+    pushAssistantText("먼저 약 사진을 찍거나 갤러리에서 선택해주세요!");
   };
 
   const pickFromCamera = async () => {
@@ -172,16 +180,17 @@ export default function App() {
   };
 
 
-  const onPickTopic = async (topic: string) => {
+  const Topic = async (topic: string) => {
     const identify = lastIdentifyRef.current;
     if (!identify?.best_match) return;
 
-    addMsg({ id: String(Date.now()), role: "user", type: "text", text: topic });
+    pushUserText(topic)
+
     setLoading(true);
     try {
       // 수정: 실제 API 함수 호출
       const answer = await callConsultationApi(identify.best_match.id, topic);
-      addMsg({ id: String(Date.now() + 10), role: "assistant", type: "text", text: answer });
+      pushAssistantText(answer)
     } finally {
       setLoading(false);
     }
@@ -212,7 +221,7 @@ export default function App() {
       return (
         <View style={styles.chipContainer}>
           {item.payload.topics.map((t) => (
-            <Pressable key={t} style={styles.chip} onPress={() => onPickTopic(t)} disabled={loading}>
+            <Pressable key={t} style={styles.chip} onPress={() => Topic(t)} disabled={loading}>
               <Text style={styles.chipText}>{t}</Text>
             </Pressable>
           ))}
