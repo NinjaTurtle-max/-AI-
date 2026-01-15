@@ -7,6 +7,7 @@ from pydantic import BaseModel
 from dotenv import load_dotenv
 from fastapi.middleware.cors import CORSMiddleware
 
+
 # config.py에서 모든 URL 변수 (URL_DRUG_INFO, URL_DUR_MIXTURE 등)를 가져옵니다.
 from config import *
 
