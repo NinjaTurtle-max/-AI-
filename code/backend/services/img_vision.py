@@ -93,6 +93,7 @@ def analyze_health_image(image_path, mode="prescription", current_pill="알약�
     except Exception as e:
         return {"error": f"분석 또는 파싱 실패: {str(e)}", "raw_content": content if 'content' in locals() else None}
 
+
 # 4. 메인 실행 예시
 if __name__ == "__main__":
     print("✅ 통합 건강 비전 스크립트 준비 완료")
@@ -113,3 +114,14 @@ if __name__ == "__main__":
         print("\n🚀 병원 처방전 OCR 분석 시작...")
         result = analyze_health_image(hospital_image_path, mode="hospital_prescription")
         print(json.dumps(result, indent=2, ensure_ascii=False))
+
+        # [테스트 3: 약봉투(약국) 테스트]
+    pill_bag_image_path = "/Users/ganghyeon-u/Desktop/약봉투.png"  # 실제 파일명/확장자에 맞게 수정하세요
+
+    if os.path.exists(pill_bag_image_path):
+        print("\n🚀 약봉투 OCR 분석 시작...")
+        # 약봉투 분석 모드는 'prescription' 입니다.
+        result = analyze_health_image(pill_bag_image_path, mode="prescription")
+        print(json.dumps(result, indent=2, ensure_ascii=False))
+    else:
+        print(f"\n⚠️ 테스트 파일을 찾을 수 없습니다: {pill_bag_image_path}")
