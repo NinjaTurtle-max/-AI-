@@ -6,7 +6,7 @@ import { useChat } from "@/src/hooks/useChat";
 import { ChatItem } from "@/src/components/ChatItem";
 import { InputBar } from "@/src/components/InputBar";
 import BackButton from "@/src/components/BackButton";
-import { usePills } from "@/src/store/PillsContext";
+import { usePrescriptionChat } from "@/src/hooks/usePrescriptionChat";
 
 export default function ChatScreen() {
   const {
@@ -18,7 +18,9 @@ export default function ChatScreen() {
     setPreviewUri,
     onSend,
     clearPreview,
-  } = useChat();
+  } = usePrescriptionChat(
+    "안녕하세요! 처방전 사진을 올려주시면 OCR로 약 이름을 읽고 복용 방법을 정리해드릴게요.\n먼저 처방전 사진을 선택해주세요."
+  );
 
   const flatListRef = useRef<FlatList>(null);
   useEffect(() => {
@@ -45,8 +47,6 @@ export default function ChatScreen() {
     if (!res.canceled) setPreviewUri(res.assets[0].uri);
   };
 
-  const { addPill} = usePills();
-
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
@@ -58,14 +58,7 @@ export default function ChatScreen() {
         data={messages}
         keyExtractor={(m) => m.id}
         renderItem={({ item }) => (
-          <ChatItem 
-            item={item} 
-            loading={loading} 
-            styles={styles}
-            onAddPill={(pill) => {
-              addPill(pill);
-            }}
-          />
+          <ChatItem item={item} loading={loading} styles={styles} />
         )}
         contentContainerStyle={styles.list}
       />
@@ -147,23 +140,4 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     marginLeft: 4,
   },
-  pillResultBubble: { position: "relative", paddingRight: 36 },
-  plusBtn: {
-  position: "absolute",
-  top: 8,
-  right: 8,
-  width: 24,
-  height: 24,
-  borderRadius: 12,
-  backgroundColor: "#fff",
-  alignItems: "center",
-  justifyContent: "center",
-  borderWidth: 1,
-  borderColor: "#ddd",
-},
-identifyBubble: {
-  position: "relative",
-  paddingRight: 36, 
-},
-
 });

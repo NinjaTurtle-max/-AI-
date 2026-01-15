@@ -61,8 +61,6 @@ export function InputBar({
       >
         <Text style={styles.sendBtnText}>전송</Text>
       </Pressable>
-
-      {loading && <ActivityIndicator style={{ marginLeft: 8 }} />}
     </View>
   );
 }

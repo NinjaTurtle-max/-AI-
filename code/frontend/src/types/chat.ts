@@ -9,5 +9,6 @@ export type IdentifyResult = {
     | { id: string; role: "user"; type: "image"; uri: string; text?: string }
     | { id: string; role: "assistant"; type: "text"; text: string }
     | { id: string; role: "assistant"; type: "identify"; payload: IdentifyResult }
-    | { id: string; role: "assistant"; type: "topic"; payload: { topics: string[] } };
+    | { id: string; role: "assistant"; type: "typing" }
+    | { id: string; role: "assistant"; type: "pill_result"; payload: { id: string; name: string } };
   

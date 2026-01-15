@@ -1,46 +1,88 @@
 import React from "react";
-import { Image, Text, View } from "react-native";
+import { Image, Text, View, Pressable } from "react-native";
 import { Msg } from "../types/chat";
-import { TopicChips } from "./TopicChips";
+import { TypingBubble } from "./TypingBubble";
+import { Ionicons } from "@expo/vector-icons";
 
 export function ChatItem({
   item,
   loading,
-  onPickTopic,
   styles,
+  onAddPill, 
 }: {
   item: Msg;
   loading: boolean;
-  onPickTopic: (topic: string) => void;
   styles: any;
+  onAddPill?: (pill: { id: string; name: string }) => void;
 }) {
   if (item.type === "image") {
     return (
       <View style={[styles.bubble, styles.userBubble]}>
         <Image source={{ uri: item.uri }} style={styles.chatImage} />
-        {!!item.text && <Text style={[styles.msgText, { marginTop: 8 }]}>{item.text}</Text>}
+        {!!item.text && (
+          <Text style={[styles.msgText, { marginTop: 8 }]}>{item.text}</Text>
+        )}
       </View>
     );
   }
 
   if (item.type === "identify") {
     const p = item.payload;
+
+    const bestId = p.best_match?.id;
+    const bestName = p.best_match?.name;
+
     return (
       <View style={[styles.bubble, styles.assistantBubble]}>
         <Text style={styles.title}>🔎 약 식별 결과</Text>
         <Text style={styles.small}>텍스트: {p.extracted_text}</Text>
+
         {p.candidates.map((c) => (
           <Text key={c.id} style={styles.small}>
             • {c.name}
           </Text>
         ))}
+        {!!bestId && (
+        <Pressable
+          onPress={() => onAddPill?.({ id: bestId, name: bestName })}
+          disabled={loading}
+          hitSlop={10}
+          style={({ pressed }) => [
+            styles.plusBtn,
+            (pressed || loading) && { transform: [{ scale: 0.92 }], opacity: 0.85 },
+            loading && { opacity: 0.4 },
+          ]}
+        >
+          <Ionicons name="add" size={18} color="#111" />
+        </Pressable>
+      )}
+
       </View>
     );
   }
 
-  if (item.type === "topic") {
+  if (item.type === "typing") {
+    return <TypingBubble styles={styles} />;
+  }
+
+  if (item.type === "pill_result") {
     return (
-      <TopicChips topics={item.payload.topics} onPick={onPickTopic} disabled={loading} styles={styles} />
+      <View style={[styles.bubble, styles.assistantBubble, styles.pillResultBubble]}>
+        <Text style={styles.msgText}>이 약은 "{item.payload.name}"로 보여요.</Text>
+
+        <Pressable
+          onPress={() => onAddPill?.(item.payload)}
+          disabled={loading}
+          hitSlop={10}
+          style={({ pressed }) => [
+            styles.plusBtn,
+            (pressed || loading) && { transform: [{ scale: 0.92 }], opacity: 0.85 },
+            loading && { opacity: 0.4 },
+          ]}
+        >
+          <Ionicons name="add" size={18} color="#111" />
+        </Pressable>
+      </View>
     );
   }
 
