@@ -3,8 +3,12 @@ import os
 
 def generate_ai_advice(drug_report, user_req):
     GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+    if not GEMINI_API_KEY:
+        # 1) 개발 중이면 그냥 문자열로 반환 (프론트 연결 테스트용)
+        return "⚠️ GEMINI_API_KEY가 설정되지 않아 AI 상담을 생성할 수 없습니다. .env에 GEMINI_API_KEY를 추가하세요."
+
     genai.configure(api_key=GEMINI_API_KEY)
-    llm_model = genai.GenerativeModel('gemini-1.5-flash')
+    llm_model = genai.GenerativeModel('gemini-2.5-flash')
 
     basic = drug_report.get('basic') or {}
     safety = drug_report.get('safety') or {}
