@@ -15,7 +15,7 @@ def init_db():
             user_id TEXT NOT NULL,
             drug_name TEXT NOT NULL,
             item_seq TEXT,
-            source_mode TEXT,  # 'prescription', 'pill_id', 'hospital' 등
+            source_mode TEXT,
             reg_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     ''')
@@ -25,7 +25,7 @@ def init_db():
         CREATE TABLE IF NOT EXISTS drug_cache (
             item_seq TEXT PRIMARY KEY,
             item_name TEXT,
-            full_report TEXT,  # API에서 가져온 JSON 통째로 저장
+            full_report TEXT,
             last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     ''')

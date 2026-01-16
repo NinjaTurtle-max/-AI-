@@ -37,21 +37,43 @@ def analyze_health_image(image_path, mode="prescription", current_pill="알약�
     # 3. 모드별 프롬프트 설정
     if mode == "prescription":  # [모드 1: 약국 약봉투]
         prompt = """
-        이 이미지는 '약봉투'야. 약품 정보와 복약 안내를 분석해서 JSON으로 응답해줘.
-        [추출 규칙]
-        1. medications: 각 약의 이름, 성분, 효능, 투약 정보 추출.
-        2. precautions: 주의사항(예: 졸음 주의, 위장장애 등) 리스트 추출.
-        3. schedule: 아침, 점심, 저녁, 취침전 복용 여부와 조건(식후 30분 등) 추출.
+        이 이미지는 '약봉투'입니다. 이미지에 있는 텍스트를 분석하여 다음 JSON 형식으로 정확하게 출력해주세요.
+        
+        응답 형식 (JSON):
+        {
+            "medications": [
+                {
+                    "name": "약 이름 (예: 타이레놀)",
+                    "effect": "효능 (예: 해열진통제)",
+                    "administer_method": "투약 정보 (예: 1일 3회)"
+                }
+            ],
+            "precautions": ["주의사항 리스트 (예: 졸음 주의)"],
+            "schedule": "전체 복용 스케줄 (예: 아침, 점심, 저녁 식후 30분)"
+        }
+        
+        주의: 마크다운 코드 블록(```json)을 포함해도 되지만, 반드시 유효한 JSON이어야 합니다.
         """
 
     elif mode == "hospital_prescription":  # [모드 2: 병원 처방전]
         prompt = """
-        이 이미지는 '병원 처방전'이야. 다음 정보를 JSON으로 추출해줘.
-        [추출 규칙]
-        1. patient: 환자 성명과 생년월일.
-        2. diagnosis_codes: 질병분류기호(K21, J00 등) 리스트.
-        3. prescribed_drugs: 처방된 약품 목록과 투약 방법.
-        4. institution: 발행한 병원 이름.
+        이 이미지는 '병원 처방전'입니다. OCR을 통해 텍스트를 추출하고 다음 JSON 형식으로 정리해주세요.
+        
+        응답 형식 (JSON):
+        {
+            "patient": { "name": "환자명", "dob": "생년월일" },
+            "diagnosis_codes": ["질병코드1", "질병코드2"],
+            "prescribed_drugs": [
+                {
+                    "name": "약 이름",
+                    "administer_method": "투약 방법",
+                     "effect": "효능(가능하면)"
+                }
+            ],
+            "institution": "병원 이름"
+        }
+        
+        주의: 반드시 유효한 JSON이어야 합니다.
         """
 
     elif mode == "food":  # [모드 3: 음식 성분 및 약물 상호작용 경고]
