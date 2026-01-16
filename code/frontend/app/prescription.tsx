@@ -1,5 +1,5 @@
 import React, { useRef, useEffect } from "react";
-import { FlatList, SafeAreaView, StyleSheet , View, Text} from "react-native";
+import { FlatList, SafeAreaView, StyleSheet, View, Text } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 
 import { useChat } from "@/src/hooks/useChat";
@@ -19,14 +19,14 @@ export default function ChatScreen() {
     onSend,
     clearPreview,
   } = usePrescriptionChat(
-    "안녕하세요! 처방전 사진을 올려주시면 OCR로 약 이름을 읽고 복용 방법을 정리해드릴게요.\n먼저 처방전 사진을 선택해주세요."
+    "안녕하세요! 병원 처방전 사진을 올려주시면 약 정보를 분석해드릴게요."
   );
 
   const flatListRef = useRef<FlatList>(null);
   useEffect(() => {
     flatListRef.current?.scrollToEnd({ animated: true });
   }, [messages]);
-  
+
   const pickFromCamera = async () => {
     if (loading) return;
 
@@ -51,10 +51,10 @@ export default function ChatScreen() {
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <BackButton />
-        <Text style={styles.headerTitle}>뒤로가기</Text>
+        <Text style={styles.headerTitle}>처방전 분석</Text>
       </View>
       <FlatList
-        ref = {flatListRef}
+        ref={flatListRef}
         data={messages}
         keyExtractor={(m) => m.id}
         renderItem={({ item }) => (
@@ -71,7 +71,8 @@ export default function ChatScreen() {
         onClearPreview={clearPreview}
         onPickCamera={pickFromCamera}
         onPickGallery={pickFromGallery}
-        onSend={() => void onSend()}
+        // Force 'hospital_prescription' mode
+        onSend={() => void onSend("hospital_prescription")}
         styles={styles}
       />
     </SafeAreaView>

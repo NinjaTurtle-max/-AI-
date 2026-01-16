@@ -16,7 +16,8 @@ from services.drug_api import get_full_drug_report
 from services.ai_pharmacist import generate_ai_advice
 
 # [추가] DB 관리 함수 임포트
-from database import register_user_drug, get_user_drug_list
+# [추가] DB 관리 함수 임포트
+from database import register_user_drug, get_user_drug_list, init_db
 
 # config.py에서 URL 설정 로드
 from config import *
@@ -28,6 +29,10 @@ app = FastAPI(
     description="사진 등록, 복약 상담, 음식 상호작용 분석 및 DB 저장 기능을 제공합니다.",
     version="2.1.0"
 )
+
+@app.on_event("startup")
+def on_startup():
+    init_db()
 
 app.add_middleware(
     CORSMiddleware,
@@ -86,7 +91,17 @@ async def register_drug_by_image(file: UploadFile = File(...), mode: str = "pres
         
         # 2. [DB 이식] 분석된 약물 리스트를 DB에 저장
         # Gemini가 보낸 결과(analysis_result) 내에 약물 이름 리스트가 있다고 가정합니다.
-        detected_pills = analysis_result.get("detected_pills", [])
+        # mode="prescription" -> medications list of objects
+        # mode="hospital_prescription" -> prescribed_drugs list of objects
+        detected_pills = []
+        if "medications" in analysis_result:
+            detected_pills = [m.get("name", m.get("drug_name", "Unknown")) for m in analysis_result["medications"]]
+        elif "prescribed_drugs" in analysis_result:
+             detected_pills = [m.get("name", m.get("drug_name", "Unknown")) for m in analysis_result["prescribed_drugs"]]
+        
+        # Fallback if just a list of strings
+        if not detected_pills:
+             detected_pills = analysis_result.get("detected_pills", [])
         
         # 만약 리스트가 있다면 하나씩 DB에 저장
         for pill_name in detected_pills:
@@ -100,6 +115,15 @@ async def register_drug_by_image(file: UploadFile = File(...), mode: str = "pres
             "detected_data": analysis_result
         }
     except Exception as e:
+        # Debugging: Log full error
+        with open("experiment.log", "a") as log_file:
+            log_file.write(f"\n[Error] /register-drug-image failed: {str(e)}\n")
+            log_file.write(traceback.format_exc())
+            if 'analysis_result' in locals():
+                 log_file.write(f"Analysis Result: {json.dumps(analysis_result, ensure_ascii=False)}\n")
+            else:
+                 log_file.write("Analysis Result: Not available (failed before analysis)\n")
+        
         raise HTTPException(status_code=500, detail=f"이미지 분석 및 저장 실패: {str(e)}")
     finally:
         if os.path.exists(temp_path):

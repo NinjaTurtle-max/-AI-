@@ -1,0 +1,34 @@
+
+[Error] /register-drug-image failed: no such table: user_drugs
+Traceback (most recent call last):
+  File "/Users/anseongmin/bootcamp/-AI-/code/backend/main.py", line 104, in register_drug_by_image
+    register_user_drug(user_id="test_user", drug_name=pill_name, mode=mode)
+    ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/anseongmin/bootcamp/-AI-/code/backend/database.py", line 41, in register_user_drug
+    cursor.execute('''
+    ~~~~~~~~~~~~~~^^^^
+        INSERT INTO user_drugs (user_id, drug_name, item_seq, source_mode)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        VALUES (?, ?, ?, ?)
+        ^^^^^^^^^^^^^^^^^^^
+    ''', (user_id, drug_name, item_seq, mode))
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+sqlite3.OperationalError: no such table: user_drugs
+Analysis Result: {"patient": {"name": "", "dob": ""}, "diagnosis_codes": ["H208", "H4042"], "prescribed_drugs": [{"name": "692000120 프레드프르테정안액(외용)", "administer_method": "2시간마다", "effect": ""}, {"name": "646202070 파모시드정 20mg(내복)", "administer_method": "식후30분후", "effect": ""}, {"name": "646201050 솔론정(내복)", "administer_method": "식후30분후", "effect": ""}], "institution": ""}
+
+[Error] /register-drug-image failed: no such table: user_drugs
+Traceback (most recent call last):
+  File "/Users/anseongmin/bootcamp/-AI-/code/backend/main.py", line 104, in register_drug_by_image
+    register_user_drug(user_id="test_user", drug_name=pill_name, mode=mode)
+    ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/anseongmin/bootcamp/-AI-/code/backend/database.py", line 41, in register_user_drug
+    cursor.execute('''
+    ~~~~~~~~~~~~~~^^^^
+        INSERT INTO user_drugs (user_id, drug_name, item_seq, source_mode)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        VALUES (?, ?, ?, ?)
+        ^^^^^^^^^^^^^^^^^^^
+    ''', (user_id, drug_name, item_seq, mode))
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+sqlite3.OperationalError: no such table: user_drugs
+Analysis Result: {"patient": {"name": "김필독", "dob": "1970년생"}, "diagnosis_codes": ["J20.9"], "prescribed_drugs": [{"name": "알마겔정", "administer_method": "", "effect": "산 관련 질환 치료제"}, {"name": "슈가메트서방정5/1000밀리그램", "administer_method": "식사와 함께 1일 1회 복용하세요.", "effect": "당뇨병 치료제"}, {"name": "듀비메트서방정0.5/1000밀리그램", "administer_method": "저녁식사와 함께 복용하세요.", "effect": "당뇨병 치료제"}, {"name": "경동아스피린장용정", "administer_method": "", "effect": "항혈전제"}, {"name": "리피토정10mg", "administer_method": "", "effect": "이상지질혈증 치료제"}, {"name": "애니코프캡슐300mg", "administer_method": "식사와 관계없이 일정한 시간에 복용하세요.", "effect": "폐쇄성기도 치료제"}, {"name": "다이크로진정", "administer_method": "", "effect": "이뇨제"}, {"name": "소론도정", "administer_method": "", "effect": "부신호르몬제"}], "institution": "터울병원"}
