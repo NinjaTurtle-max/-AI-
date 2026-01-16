@@ -38,6 +38,26 @@ export default function HomeScreen() {
             <Text style={styles.desc}>처방전 사진 분석</Text>
           </View>
         </Pressable>
+
+        {/* 약봉투 채팅방 */}
+        <Pressable
+          style={({ pressed }) => [styles.card, pressed && styles.pressed]}
+          onPress={() => router.push("/medicine_bag")} 
+        >
+          <Fontisto name="shopping-bag" size={26} color="#111" />
+          <Text style={styles.title}>약봉투</Text>
+          <Text style={styles.desc}>약 봉투/약 봉지 정보 확인</Text>
+        </Pressable>
+
+        {/* 음식 채팅방 */}
+        <Pressable
+          style={({ pressed }) => [styles.card, pressed && styles.pressed]}
+          onPress={() => router.push("/food")} 
+        >
+          <Ionicons name="fast-food" size={26} color="#111" />
+          <Text style={styles.title}>음식</Text>
+          <Text style={styles.desc}>음식 사진 분석</Text>
+        </Pressable>
       </View>
     </SafeAreaView>
   );

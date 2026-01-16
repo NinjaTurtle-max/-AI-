@@ -4,7 +4,11 @@ import shutil
 from fastapi import FastAPI, HTTPException, UploadFile, File
 from pydantic import BaseModel
 from dotenv import load_dotenv
+load_dotenv()
 from fastapi.middleware.cors import CORSMiddleware
+# 디버깅
+import traceback
+import logging
 
 # 분리된 서비스 모듈 임포트
 from services.img_vision import analyze_health_image
@@ -17,10 +21,7 @@ from database import register_user_drug, get_user_drug_list
 # config.py에서 URL 설정 로드
 from config import *
 
-# =========================================================
-# 1. 환경 변수 및 설정 로드
-# =========================================================
-load_dotenv()
+
 
 app = FastAPI(
     title="AI 약사 통합 관리 서비스 (DB 연동형)",
@@ -124,7 +125,11 @@ def consult_drug(request: ConsultationRequest):
             "selected_options": request.options,
             "advice": advice
         }
+    
     except Exception as e:
+        # 디벅깅
+        logging.error("❌ /consult crashed: %s", e)
+        logging.error(traceback.format_exc())
         raise HTTPException(status_code=500, detail=f"상담 생성 오류: {str(e)}")
 
 @app.post("/analyze-food-interaction")
