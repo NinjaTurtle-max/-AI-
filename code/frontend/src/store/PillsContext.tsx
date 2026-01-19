@@ -33,8 +33,25 @@ export function PillsProvider({ children }: { children: React.ReactNode }) {
     });
   };
 
-  const removePill = (id: string) => {
-    setPills((prev) => prev.filter((p) => p.id !== id));
+  const removePill = async (id: string) => {
+    try {
+      // Call backend API to delete from database
+      const response = await fetch(`http://127.0.0.1:8000/user/drug/${id}`, {
+        method: "DELETE",
+      });
+
+      if (!response.ok) {
+        console.error("Failed to delete pill from database");
+        // Still remove from local state even if API fails
+      }
+
+      // Remove from local state
+      setPills((prev) => prev.filter((p) => p.id !== id));
+    } catch (error) {
+      console.error("Error deleting pill:", error);
+      // Still remove from local state even if API fails
+      setPills((prev) => prev.filter((p) => p.id !== id));
+    }
   };
 
   const clearPills = () => setPills([]);

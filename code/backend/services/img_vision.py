@@ -81,13 +81,12 @@ def analyze_health_image(image_path, mode="pill_id", current_pill="알약명"):
 
     # [모델 설정]
     try:
-        # 우선 2.5 시도
+        # 2.5-flash 사용
         model = genai.GenerativeModel('gemini-2.5-flash')
         print("🤖 모델: gemini-2.5-flash")
-    except:
-        # 2.5 실패 시 1.5-flash로 대체
-        print("ℹ️ 2.5 로드 불가, gemini-1.5-flash로 전환")
-        model = genai.GenerativeModel('gemini-1.5-flash')
+    except Exception as e:
+        print(f"❌ 모델 로드 실패: {e}")
+        return {"error": f"AI 모델 로드 실패: {str(e)}"}
 
     # [중요] 품질 검사 및 반려를 위한 공통 지침
     quality_check_instruction = """
