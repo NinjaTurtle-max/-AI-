@@ -4,12 +4,43 @@ import json
 from dotenv import load_dotenv
 
 # config.py에서 URL 상수들 가져오기
-from config import * # 1. 환경 변수 로드 (단독 실행 시 필요)
+from config import * 
 load_dotenv()
 
 # .env의 KEY_E_DRUG는 'Decoding Key'여야 requests가 알아서 인코딩합니다.
 DATA_GO_KR_KEY = os.getenv("KEY_E_DRUG")
 USE_MOCK_DATA = os.getenv("USE_MOCK_DATA", "False").lower() == "true"
+
+# =========================================================
+# [✨ 핵심] 이 함수가 있어야 에러가 안 납니다!
+# =========================================================
+def summarize_text(text_input):
+    """
+    긴 텍스트(효능/용법)나 리스트에서 핵심 1문장만 추출합니다.
+    (UI 미리보기용 짧은 텍스트 생성)
+    """
+    if not text_input:
+        return "정보 없음"
+    
+    # 리스트면 첫 번째 항목 사용, 아니면 문자열 변환
+    if isinstance(text_input, list):
+        if len(text_input) > 0:
+            full_text = str(text_input[0])
+        else:
+            return "정보 없음"
+    else:
+        full_text = str(text_input)
+    
+    # HTML 태그 및 특수문자 간단 정리
+    full_text = full_text.replace("<p>", "").replace("</p>", " ").replace("<br>", " ")
+    full_text = full_text.replace("\r", "").replace("\n", " ")
+
+    # 문장 끝(. )을 기준으로 자르거나, 너무 길면 50자로 자름
+    summary = full_text.split('.')[0]
+    if len(summary) > 50:
+        summary = summary[:50] + "..."
+        
+    return summary.strip()
 
 # =========================================================
 # 2. 약품 검색 함수 (이름 -> 코드/상세 변환)
@@ -74,13 +105,14 @@ def get_full_drug_report(item_seq, item_name):
     제공된 DUR API 엔드포인트들을 모두 호출하여 안전성 리포트를 생성합니다.
     """
     if USE_MOCK_DATA:
-        return {"basic": {"item_name": item_name}, "safety": {}}
+        return {"basic": {"item_name": item_name}, "safety": {}, "summary": {}}
 
     print(f"📑 [DUR] '{item_name}' 안전성 정보 조회 시작...")
 
     report = {
         "basic": {"item_name": item_name, "item_seq": item_seq},
-        "safety": {} # 병용금기, 임부금기 등 결과 저장
+        "safety": {}, # 병용금기, 임부금기 등 결과 저장
+        "summary": {} # [신규] 요약 정보 저장
     }
     
     # 공통 파라미터
@@ -104,7 +136,18 @@ def get_full_drug_report(item_seq, item_name):
         "서방정분할주의": URL_DUR_SPLIT
     }
 
-    # 1. DUR API 순회
+    # 1. 기본 정보(효능/용법)를 위해 한 번 더 검색 (상세 정보 필요 시)
+    try:
+        basic_params = default_params.copy()
+        basic_params["itemSeq"] = item_seq_str
+        res = requests.get(URL_DRUG_INFO, params=basic_params, timeout=3)
+        if res.status_code == 200:
+            items = res.json().get('body', {}).get('items', [])
+            if items:
+                report['basic'] = items[0]
+    except: pass
+
+    # 2. DUR API 순회
     for title, url in dur_apis.items():
         try:
             params = default_params.copy()
@@ -150,5 +193,33 @@ def get_full_drug_report(item_seq, item_name):
         except Exception:
             report['safety'][title] = ["연결 에러"]
 
-    print("✅ [DUR] 리포트 생성 완료")
+    # =========================================================
+    # [✨ 핵심] 요약 정보 생성 (이 부분이 추가되어야 합니다!)
+    # =========================================================
+    basic_info = report.get('basic', {})
+    
+    # 1) 효능 요약
+    report['summary']['effect'] = summarize_text(
+        basic_info.get('efcyQesitm') or "효능 정보가 없습니다."
+    )
+    
+    # 2) 복용법 요약
+    report['summary']['usage'] = summarize_text(
+        basic_info.get('useMethodQesitm') or "복용법 정보가 없습니다."
+    )
+    
+    # 3) 금기사항 요약
+    safety_summary_list = []
+    for key, val in report['safety'].items():
+        if val and isinstance(val, list):
+            first_msg = str(val[0])
+            if "없음" not in first_msg and "실패" not in first_msg:
+                safety_summary_list.append(key)
+    
+    if safety_summary_list:
+        report['summary']['warning'] = f"{', '.join(safety_summary_list[:2])} 등 주의"
+    else:
+        report['summary']['warning'] = "특이사항 없음"
+
+    print(f"✅ [DUR] 리포트 생성 완료 (요약 포함)")
     return report
