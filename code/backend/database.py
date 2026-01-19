@@ -137,8 +137,10 @@ def register_user_drug(user_id, drug_name, item_seq=None, mode="unknown"):
         VALUES (?, ?, ?, ?)
     ''', (user_id, drug_name, item_seq, mode))
     conn.commit()
+    new_id = cursor.lastrowid # 생성된 ID 가져오기
     conn.close()
-    print(f"💊 약물 등록 완료: {drug_name}")
+    print(f"💊 약물 등록 완료: {drug_name} (ID: {new_id})")
+    return new_id # ID 반환
 
 def get_user_drug_list(user_id):
     conn = sqlite3.connect(DB_NAME)
@@ -147,6 +149,31 @@ def get_user_drug_list(user_id):
     drugs = [row[0] for row in cursor.fetchall()]
     conn.close()
     return drugs # 리스트 반환
+
+def get_user_drugs_detail(user_id):
+    """프론트엔드 연동용: 약물 상세 정보 리스트 반환 (ID 포함)"""
+    conn = sqlite3.connect(DB_NAME)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT id, drug_name, item_seq, source_mode, reg_date 
+        FROM user_drugs 
+        WHERE user_id = ? 
+        ORDER BY id DESC
+    ''', (user_id,))
+    rows = cursor.fetchall()
+    conn.close()
+    
+    result = []
+    for row in rows:
+        result.append({
+            "id": row["id"],
+            "drug_name": row["drug_name"],
+            "item_seq": row["item_seq"],
+            "source_mode": row["source_mode"],
+            "reg_date": row["reg_date"]
+        })
+    return result
 
 def delete_user_drug(record_id):
     conn = sqlite3.connect(DB_NAME)

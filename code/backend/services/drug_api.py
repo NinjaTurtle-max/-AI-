@@ -80,6 +80,7 @@ def search_drug_by_name(drug_name):
     }
     
     try:
+        # 1차 검색: 원본 이름 그대로
         res = requests.get(URL_DRUG_INFO, params=params, timeout=5)
         
         if res.status_code == 200:
@@ -88,23 +89,41 @@ def search_drug_by_name(drug_name):
                 items = data.get('body', {}).get('items', [])
                 
                 if items:
-                    first = items[0]
-                    # 프론트엔드 표시에 필요한 정보들을 같이 추출
-                    result = {
-                        "item_seq": first.get("itemSeq"),
-                        "item_name": first.get("itemName"),
-                        "entp_name": first.get("entpName"),   # 제조사
-                        "item_image": first.get("itemImage"), # 약 이미지 URL
-                        "effect": first.get("efcyQesitm"),    # 효능 (간략)
-                        "use_method": first.get("useMethodQesitm") # 용법 (간략)
-                    }
-                    return result
+                    return _parse_drug_item(items[0])
+                
+                # 2차 검색: 괄호 및 성분명 제거 후 재검색
+                # 예: "인데놀정10mg(프로프라놀롤염산염)" -> "인데놀정10mg"
+                import re
+                cleaned_name = re.sub(r'\(.*?\)', '', drug_name).strip()
+                
+                if cleaned_name != drug_name:
+                    print(f"⚠️ [API] 원본 검색 실패. '{cleaned_name}'으(로) 재검색 시도...")
+                    params["itemName"] = cleaned_name
+                    res = requests.get(URL_DRUG_INFO, params=params, timeout=5)
+                    
+                    if res.status_code == 200:
+                         data = res.json()
+                         items = data.get('body', {}).get('items', [])
+                         if items:
+                             return _parse_drug_item(items[0])
+
             except json.JSONDecodeError:
                 print("⚠️ [API] 검색 응답이 JSON이 아닙니다. (XML 에러 가능성)")
     except Exception as e:
         print(f"❌ [API] 약품 검색 실패: {e}")
     
     return None
+
+def _parse_drug_item(item):
+    """API 응답 아이템 파싱 헬퍼"""
+    return {
+        "item_seq": item.get("itemSeq"),
+        "item_name": item.get("itemName"),
+        "entp_name": item.get("entpName"),   # 제조사
+        "item_image": item.get("itemImage"), # 약 이미지 URL
+        "effect": item.get("efcyQesitm"),    # 효능 (간략)
+        "use_method": item.get("useMethodQesitm") # 용법 (간략)
+    }
 
 # =========================================================
 # 3. 종합 안전 리포트 생성 함수 (DUR 전체 스캔)

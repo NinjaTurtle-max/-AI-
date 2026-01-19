@@ -9,9 +9,9 @@ import warnings
 # [설정] 경고 차단
 warnings.filterwarnings("ignore", category=FutureWarning)
 
-# [경로 설정] 현우님이 지정하신 절대 경로 반영
+# [경로 설정] 현재 사용자 환경에 맞게 수정
 RULES_JSON_PATH = "backend/pill_recognition_rules.json"
-MASTER_DB_PATH = "/Users/eunseo/Desktop/bootcamp(ai)/pill_master.db"
+MASTER_DB_PATH = "/Users/anseongmin/bootcamp/-AI-/code/backend/pill_master.db"
 
 def _load_recognition_rules():
     """전수 조사 결과가 담긴 JSON 가이드를 불러옵니다."""
@@ -127,7 +127,27 @@ def analyze_pill(image_path, api_key, service_key=None):
             "total_found": len(candidates)
         }
     except Exception as e:
-        return {"error": f"분석 실패: {str(e)}"}
+        print(f"❌ [Gemini Error] {str(e)}")
+        print("⚠️ API 할당량 초과 등으로 분석 실패 -> '타치온정(AT/D)' 더미 특징으로 로컬 DB 검색을 시도합니다.")
+        
+        # [Fallback] 테스트용 더미 특징 (타치온정)
+        dummy_features = {
+            "item_name": "",
+            "print_front": "AT",
+            "print_back": "D",
+            "color_class1": "하양", 
+            "drug_shape": "원형"
+        }
+        
+        candidates = _search_local_pill_db(dummy_features)
+        
+        return {
+            "mode": "pill_id",
+            "detected_features": dummy_features,
+            "candidates": candidates,
+            "total_found": len(candidates),
+            "warning": "API 오류로 인해 테스트용 데이터(타치온정)가 표시됩니다."
+        }
 
 # =========================================================
 # [검증 테스트 블록] - 타치온정 정밀 테스트 (TAT / Da)

@@ -2,10 +2,16 @@ import React, { createContext, useContext, useEffect, useMemo, useState } from "
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 export type UserProfile = {
+    user_id: string; // for DB sync
+    name: string;
+    age: number;
     height: number; // cm
     weight: number; // kg
     bmi: number; // auto-calculated
     gender: "남성" | "여성" | "기타" | "";
+    is_pregnant: boolean;
+    chronic_diseases: string[];
+    allergies: string[];
 };
 
 type ProfileContextValue = {
@@ -18,10 +24,16 @@ type ProfileContextValue = {
 const PROFILE_STORAGE_KEY = "@user_profile";
 
 const defaultProfile: UserProfile = {
+    user_id: "user_12345", // 임시 고정 ID (실제 로그인 연동 시 변경)
+    name: "",
+    age: 0,
     height: 0,
     weight: 0,
     bmi: 0,
     gender: "",
+    is_pregnant: false,
+    chronic_diseases: [],
+    allergies: [],
 };
 
 const ProfileContext = createContext<ProfileContextValue | null>(null);
@@ -40,7 +52,8 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
             const stored = await AsyncStorage.getItem(PROFILE_STORAGE_KEY);
             if (stored) {
                 const parsed = JSON.parse(stored);
-                setProfile(parsed);
+                // 기존 데이터에 없는 새 필드(user_id, name 등)를 기본값으로 채워줌
+                setProfile({ ...defaultProfile, ...parsed });
             }
         } catch (error) {
             console.error("Failed to load profile:", error);

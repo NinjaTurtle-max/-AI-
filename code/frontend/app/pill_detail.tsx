@@ -34,8 +34,9 @@ export default function PillDetailScreen() {
         }
         text = await callConsultationByName(String(name), topic);
       } else {
-        // 기존 YOLO 방식 (class_id 사용)
-        text = await callConsultationApi(String(id), topic);
+        // 기존 YOLO 방식 (class_id 사용) -> 백엔드 변경으로 인해 이제 '약 이름'을 보내야 함
+        // 따라서 id 대신 name을 전달 (name이 없으면 id를 보냄)
+        text = await callConsultationApi(name ? String(name) : String(id), topic);
       }
 
       setResult(text);

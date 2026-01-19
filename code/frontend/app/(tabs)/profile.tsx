@@ -12,13 +12,19 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useProfile } from "../../src/store/ProfileContext";
+import { saveUserProfile } from "../../src/services/chatApi";
 
 export default function ProfileScreen() {
     const { profile, updateProfile, saveProfile, isLoading } = useProfile();
 
+    const [name, setName] = useState(profile.name || "");
+    const [age, setAge] = useState(profile.age > 0 ? profile.age.toString() : "");
     const [height, setHeight] = useState(profile.height > 0 ? profile.height.toString() : "");
     const [weight, setWeight] = useState(profile.weight > 0 ? profile.weight.toString() : "");
     const [gender, setGender] = useState<"남성" | "여성" | "기타" | "">(profile.gender);
+    const [diseases, setDiseases] = useState(profile.chronic_diseases ? profile.chronic_diseases.join(", ") : "");
+    const [allergies, setAllergies] = useState(profile.allergies ? profile.allergies.join(", ") : "");
+    const [isPregnant, setIsPregnant] = useState(profile.is_pregnant || false);
 
     const getBMIStatus = (bmi: number) => {
         if (bmi === 0) return { label: "-", color: "#95a5a6", gradient: ["#bdc3c7", "#95a5a6"] };
@@ -31,10 +37,11 @@ export default function ProfileScreen() {
     const handleSave = async () => {
         const heightNum = parseFloat(height);
         const weightNum = parseFloat(weight);
+        const ageNum = parseInt(age, 10);
 
         // Validation
-        if (!height || !weight || !gender) {
-            Alert.alert("입력 오류", "모든 필드를 입력해주세요.");
+        if (!name || !age || !height || !weight || !gender) {
+            Alert.alert("입력 오류", "이름, 나이, 키, 몸무게, 성별은 필수 입력값입니다.");
             return;
         }
 
@@ -48,19 +55,43 @@ export default function ProfileScreen() {
             return;
         }
 
-        // Update profile
+        // Parse lists
+        const diseaseList = diseases.split(",").map(s => s.trim()).filter(Boolean);
+        const allergyList = allergies.split(",").map(s => s.trim()).filter(Boolean);
+
+        // Update local context first
         updateProfile({
+            name,
+            age: ageNum,
             height: heightNum,
             weight: weightNum,
             gender: gender,
+            is_pregnant: isPregnant,
+            chronic_diseases: diseaseList,
+            allergies: allergyList,
         });
 
-        // Save to AsyncStorage
+        // Sync with Backend
         try {
-            await saveProfile();
+            const success = await saveUserProfile({
+                user_id: profile.user_id, // Context의 ID 사용
+                name,
+                age: ageNum,
+                gender,
+                is_pregnant: isPregnant,
+                chronic_diseases: diseaseList,
+                allergies: allergyList
+            });
+
+            if (!success) {
+                Alert.alert("알림", "서버 저장 실패 (기기에는 저장됨)");
+            }
+
+            await saveProfile(); // Save to AsyncStorage
             Alert.alert("저장 완료", "프로필이 저장되었습니다.");
         } catch (error) {
-            Alert.alert("저장 실패", "프로필 저장에 실패했습니다.");
+            console.error(error);
+            Alert.alert("저장 실패", "프로필 저장 중 오류가 발생했습니다.");
         }
     };
 
@@ -115,6 +146,38 @@ export default function ProfileScreen() {
 
                 {/* Input Section */}
                 <Text style={styles.sectionTitle}>기본 정보</Text>
+
+                {/* Name Input */}
+                <View style={styles.inputGroup}>
+                    <Text style={styles.inputLabel}>이름</Text>
+                    <View style={styles.inputContainer}>
+                        <Ionicons name="person-outline" size={20} color="#7f8c8d" style={styles.inputIcon} />
+                        <TextInput
+                            style={styles.input}
+                            value={name}
+                            onChangeText={setName}
+                            placeholder="이름을 입력하세요"
+                            placeholderTextColor="#bdc3c7"
+                        />
+                    </View>
+                </View>
+
+                {/* Age Input */}
+                <View style={styles.inputGroup}>
+                    <Text style={styles.inputLabel}>나이</Text>
+                    <View style={styles.inputContainer}>
+                        <Ionicons name="calendar-outline" size={20} color="#7f8c8d" style={styles.inputIcon} />
+                        <TextInput
+                            style={styles.input}
+                            value={age}
+                            onChangeText={setAge}
+                            placeholder="예: 30"
+                            keyboardType="numeric"
+                            placeholderTextColor="#bdc3c7"
+                        />
+                        <Text style={styles.inputUnit}>세</Text>
+                    </View>
+                </View>
 
                 {/* Height Input */}
                 <View style={styles.inputGroup}>
@@ -175,6 +238,63 @@ export default function ProfileScreen() {
                         ))}
                     </View>
                 </View>
+
+                {/* Additional Info Section */}
+                <Text style={[styles.sectionTitle, { marginTop: 20 }]}>건강 상세 정보</Text>
+
+                {/* Chronic Diseases */}
+                <View style={styles.inputGroup}>
+                    <Text style={styles.inputLabel}>기저질환 (쉼표로 구분)</Text>
+                    <View style={styles.inputContainer}>
+                        <Ionicons name="medkit-outline" size={20} color="#7f8c8d" style={styles.inputIcon} />
+                        <TextInput
+                            style={styles.input}
+                            value={diseases}
+                            onChangeText={setDiseases}
+                            placeholder="예: 고혈압, 당뇨"
+                            placeholderTextColor="#bdc3c7"
+                        />
+                    </View>
+                </View>
+
+                {/* Allergies */}
+                <View style={styles.inputGroup}>
+                    <Text style={styles.inputLabel}>알레르기 (쉼표로 구분)</Text>
+                    <View style={styles.inputContainer}>
+                        <Ionicons name="alert-circle-outline" size={20} color="#7f8c8d" style={styles.inputIcon} />
+                        <TextInput
+                            style={styles.input}
+                            value={allergies}
+                            onChangeText={setAllergies}
+                            placeholder="예: 복숭아, 항생제"
+                            placeholderTextColor="#bdc3c7"
+                        />
+                    </View>
+                </View>
+
+                {/* Pregnancy Toggle (Only for Female) */}
+                {gender === "여성" && (
+                    <View style={styles.inputGroup}>
+                        <Text style={styles.inputLabel}>임신 여부</Text>
+                        <Pressable
+                            style={[
+                                styles.inputContainer,
+                                isPregnant && { borderColor: "#667eea", backgroundColor: "#f0f4ff" }
+                            ]}
+                            onPress={() => setIsPregnant(!isPregnant)}
+                        >
+                            <Ionicons
+                                name={isPregnant ? "checkbox" : "square-outline"}
+                                size={24}
+                                color={isPregnant ? "#667eea" : "#7f8c8d"}
+                                style={styles.inputIcon}
+                            />
+                            <Text style={[styles.input, isPregnant && { color: "#667eea", fontWeight: "600" }]}>
+                                {isPregnant ? "임신 중입니다" : "해당 없음"}
+                            </Text>
+                        </Pressable>
+                    </View>
+                )}
 
                 {/* Save Button */}
                 <Pressable
