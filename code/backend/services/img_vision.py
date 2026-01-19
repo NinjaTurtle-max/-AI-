@@ -1,149 +1,187 @@
 import os
 import json
 import PIL.Image
+import requests
 import google.generativeai as genai
 from dotenv import load_dotenv
 
-# 1. 환경 변수 로드 (.env 파일에 GEMINI_API_KEY가 있어야 합니다)
+# =========================================================
+# 1. 환경 설정 및 API 키 로드
+# =========================================================
+# (메인 앱에서 로드하므로 여기선 생략 가능하지만, 단독 실행을 위해 남겨둠)
 load_dotenv()
 
-# 2. Gemini API 설정
-API_KEY = os.getenv("GEMINI_API_KEY")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+MFDS_SERVICE_KEY = os.getenv("KEY_E_DRUG")
 
-if not API_KEY or API_KEY == "YOUR_GEMINI_API_KEY":
-    print("❌ 에러: API 키를 찾을 수 없습니다. .env 파일을 확인하세요.")
-else:
-    genai.configure(api_key=API_KEY)
+if GEMINI_API_KEY:
+    genai.configure(api_key=GEMINI_API_KEY)
 
-def analyze_health_image(image_path, mode="prescription", current_pill="알약명"):
-    """
-    이미지 분석 수행 (약봉투, 병원 처방전, 음식 및 약물 상호작용 분석)
+# 식약처 의약품 낱알식별 정보 엔드포인트
+PILL_IDENT_API_URL = "http://apis.data.go.kr/1471000/MdcinGrnIdntfcInfoService03/getMdcinGrnIdntfcInfoList03"
+
+# =========================================================
+# 2. 식약처 API 호출 함수
+# =========================================================
+def call_pill_api(pill_features):
+    print("\n" + "-"*40)
+    print("[STEP 3] 식약처 API 데이터 요청")
+
+    if not MFDS_SERVICE_KEY:
+        print("⚠️ 식약처 API 키 없음")
+        return []
+
+    params = {
+        'serviceKey': MFDS_SERVICE_KEY,
+        'type': 'json',
+        'numOfRows': '10',
+        'pageNo': '1',
+        'item_name': pill_features.get('item_name', ''),     
+        'print_front': pill_features.get('print_front', ''), 
+        'print_back': pill_features.get('print_back', ''),   
+        'color_class1': pill_features.get('color_class1', ''),
+        'drug_shape': pill_features.get('drug_shape', '')
+    }
     
-    Args:
-        image_path (str): 이미지 파일 경로
-        mode (str): 'prescription'(약봉투), 'hospital_prescription'(처방전), 'food'(음식분석)
-        current_pill (str): 사용자가 현재 복용 중인 약 이름 (음식 모드에서 경고 문구 생성용)
-    """
+    # 빈 값 제거
+    params = {k: v for k, v in params.items() if v}
+    print(f"🔍 [DEBUG] API 파라미터: {json.dumps(params, ensure_ascii=False)}")
+    
+    try:
+        response = requests.get(PILL_IDENT_API_URL, params=params, timeout=15)
+        if response.status_code == 200:
+            try:
+                data = response.json()
+                items = data.get('body', {}).get('items', [])
+                print(f"📊 [RESULT] {len(items) if items else 0}건 발견")
+                return items if items else []
+            except json.JSONDecodeError:
+                print("❌ JSON 파싱 실패")
+                return []
+        else:
+            print(f"⚠️ API 오류: {response.status_code}")
+            return []
+    except Exception as e:
+        print(f"⚠️ 요청 실패: {e}")
+        return []
+
+# =========================================================
+# 3. 통합 이미지 분석 함수 (품질 검사 포함)
+# =========================================================
+def analyze_health_image(image_path, mode="pill_id", current_pill="알약명"):
+    print("\n" + "="*60)
+    print(f"[STEP 1] 이미지 분석 시작 (모드: {mode})")
+
     try:
         if not os.path.exists(image_path):
-            return {"error": f"파일을 찾을 수 없습니다: {image_path}"}
+            return {"error": f"파일 없음: {image_path}"}
         img = PIL.Image.open(image_path)
     except Exception as e:
         return {"error": f"이미지 로드 실패: {e}"}
 
-    # 모델 설정 (멀티모달에 최적화된 1.5 Flash 사용)
-    model = genai.GenerativeModel('gemini-2.5-flash')
+    # [모델 설정]
+    try:
+        # 우선 2.5 시도
+        model = genai.GenerativeModel('gemini-2.5-flash')
+        print("🤖 모델: gemini-2.5-flash")
+    except:
+        # 2.5 실패 시 1.5-flash로 대체
+        print("ℹ️ 2.5 로드 불가, gemini-1.5-flash로 전환")
+        model = genai.GenerativeModel('gemini-1.5-flash')
 
-    # 3. 모드별 프롬프트 설정
-    if mode == "prescription":  # [모드 1: 약국 약봉투]
-        prompt = """
-        이 이미지는 '약봉투'입니다. 이미지에 있는 텍스트를 분석하여 다음 JSON 형식으로 정확하게 출력해주세요.
+    # [중요] 품질 검사 및 반려를 위한 공통 지침
+    quality_check_instruction = """
+    [이미지 품질 검사 단계]
+    분석을 시작하기 전에 이미지 상태를 먼저 확인하세요.
+    1. 사진이 너무 흐릿하거나(Blurry), 너무 어둡거나, 해상도가 낮아 글자나 형체를 알아볼 수 없는 경우.
+    2. 해당 모드와 관련된 객체(알약, 약봉투, 처방전, 음식)가 사진에 전혀 없는 경우.
+    
+    위 두 가지 중 하나라도 해당하면, 즉시 아래 JSON 포맷으로만 응답하고 분석을 종료하세요:
+    {"error": "INVALID_IMAGE", "reason": "사진이 너무 흐리거나 대상을 찾을 수 없습니다. 다시 선명하게 촬영해주세요."}
+    
+    이미지가 선명하고 대상이 있다면, 아래 요청을 수행하세요.
+    ---------------------------------------------------
+    """
+
+    # [프롬프트 설정]
+    if mode == "pill_id":
+        prompt = quality_check_instruction + """
+        이 알약 사진을 분석하여 식약처 DB 검색용 정보를 JSON으로 추출해.
+        
+        1. item_name: 약 이름이나 글자가 아주 명확하면 적고, 아니면 빈 문자열("").
+        2. print_front: 알약 앞면 식별문자 (보이는 대로, 없으면 "").
+        3. print_back: 알약 뒷면 식별문자 (없으면 "").
+        4. color_class1: [하양, 노랑, 주황, 분홍, 빨강, 갈색, 연두, 초록, 청록, 파랑, 보라, 회색, 검정, 투명] 중 1택.
+        5. drug_shape: [원형, 타원형, 장방형, 반원형, 삼각형, 사각형, 마름모형, 오각형, 육각형, 팔각형] 중 1택.
         
         응답 형식 (JSON):
-        {
-            "medications": [
-                {
-                    "name": "약 이름 (예: 타이레놀)",
-                    "effect": "효능 (예: 해열진통제)",
-                    "administer_method": "투약 정보 (예: 1일 3회)"
-                }
-            ],
-            "precautions": ["주의사항 리스트 (예: 졸음 주의)"],
-            "schedule": "전체 복용 스케줄 (예: 아침, 점심, 저녁 식후 30분)"
-        }
-        
-        주의: 마크다운 코드 블록(```json)을 포함해도 되지만, 반드시 유효한 JSON이어야 합니다.
+        {"item_name": "", "print_front": "", "print_back": "", "color_class1": "", "drug_shape": ""}
         """
-
-    elif mode == "hospital_prescription":  # [모드 2: 병원 처방전]
-        prompt = """
-        이 이미지는 '병원 처방전'입니다. OCR을 통해 텍스트를 추출하고 다음 JSON 형식으로 정리해주세요.
-        
-        응답 형식 (JSON):
-        {
-            "patient": { "name": "환자명", "dob": "생년월일" },
-            "diagnosis_codes": ["질병코드1", "질병코드2"],
-            "prescribed_drugs": [
-                {
-                    "name": "약 이름",
-                    "administer_method": "투약 방법",
-                     "effect": "효능(가능하면)"
-                }
-            ],
-            "institution": "병원 이름"
-        }
-        
-        주의: 반드시 유효한 JSON이어야 합니다.
+    elif mode == "prescription":
+        prompt = quality_check_instruction + """
+        이 약봉투 이미지를 분석해. JSON으로 출력해.
+        응답 형식: {"medications": [{"name": "약이름", "effect": "효능", "administer_method": "복용법"}], "precautions": [], "schedule": ""}
         """
-
-    elif mode == "food":  # [모드 3: 음식 성분 및 약물 상호작용 경고]
-        prompt = f"""
-        이 사진 속 음식을 인식하고, 포함된 주요 식재료 성분을 분석해줘.
-        특히 사용자가 복용 중인 '{current_pill}'과 상호작용할 위험이 있는 성분을 찾는 것이 핵심이야.
-
-        [응답 규칙]
-        1. detected_items: 인식된 음식 이름 리스트.
-        2. main_ingredients: 들어간 주요 식재료 성분 (예: 대두, 우유, 자몽 등).
-        3. warning_message: 식재료 중 '{current_pill}'과 충돌할 수 있는 성분(예: 대두)이 있다면, 
-           "사진 속 음식에 포함된 '성분명'은 현재 복용 중인 {current_pill}과 먹으면 위험하오니 피하는 것이 좋을 것 같아요" 
-           느낌으로 친절한 경고 문구를 작성해줘. 위험 성분이 없으면 "특이사항 없습니다."라고 해줘.
-
-        응답 형식:
-        {{
-          "type": "food_interaction_analysis",
-          "detected_items": ["음식명"],
-          "main_ingredients": ["성분1", "성분2"],
-          "warning_message": "경고 메시지 내용"
-        }}
+    elif mode == "hospital_prescription":
+        prompt = quality_check_instruction + """
+        이 병원 처방전을 분석해. JSON으로 출력해.
+        응답 형식: {"prescribed_drugs": [{"name": "약이름", "administer_method": "", "effect": ""}]}
         """
-
+    elif mode == "food":
+        prompt = quality_check_instruction + f"""
+        이 음식 사진을 분석해. '{current_pill}'과 상호작용 위험이 있는 성분을 찾아 JSON으로 출력해.
+        응답 형식: {{"type": "food_interaction_analysis", "detected_items": [], "main_ingredients": [], "warning_message": ""}}
+        """
     else:
-        return {"error": "지원하지 않는 모드입니다."}
+        return {"error": "지원하지 않는 모드"}
 
     try:
-        # 모델 분석 실행
+        print("[STEP 2] Gemini 분석 중...")
         response = model.generate_content([prompt, img])
         content = response.text.strip()
         
-        # JSON 파싱 안정화 로직
+        # JSON 클리닝
         if "```json" in content:
             content = content.split("```json")[1].split("```")[0].strip()
         elif "```" in content:
             content = content.split("```")[1].split("```")[0].strip()
             
-        return json.loads(content)
+        analysis_result = json.loads(content)
+        
+        # [신규] 반려 로직 처리
+        if "error" in analysis_result and analysis_result["error"] == "INVALID_IMAGE":
+            print(f"🚫 [반려] {analysis_result['reason']}")
+            # API 호출 없이 에러 반환
+            return analysis_result
+
+        print(f"✅ 분석 완료: {str(analysis_result)[:100]}...")
+
+        # 알약 식별 모드면 API 호출 연동
+        if mode == "pill_id":
+            candidates = call_pill_api(analysis_result)
+            
+            # 재검색 로직
+            if not candidates and analysis_result.get('item_name'):
+                print("ℹ️ 재검색 시도 (특징 기반)...")
+                retry_features = analysis_result.copy()
+                del retry_features['item_name']
+                candidates = call_pill_api(retry_features)
+
+            return {
+                "detected_features": analysis_result,
+                "candidates": candidates,
+                "total_found": len(candidates)
+            }
+            
+        return analysis_result
+
     except Exception as e:
-        return {"error": f"분석 또는 파싱 실패: {str(e)}", "raw_content": content if 'content' in locals() else None}
+        return {"error": f"분석 실패: {str(e)}"}
 
-
-# 4. 메인 실행 예시
+# 테스트
 if __name__ == "__main__":
-    print("✅ 통합 건강 비전 스크립트 준비 완료")
-
-    # [테스트 1: 음식 성분 및 위험 경고 테스트]
-    # 실제 테스트 시 이미지 경로와 약 이름을 수정하세요.
-    food_image_path = "/Users/ganghyeon-u/Desktop/음식.png" 
-    pill_i_take = "갑상선 호르몬제" # 예: 대두와 상호작용하는 약물
-    
-    if os.path.exists(food_image_path):
-        print(f"\n🚀 음식 상호작용 분석 시작 (약물: {pill_i_take})...")
-        result = analyze_health_image(food_image_path, mode="food", current_pill=pill_i_take)
-        print(json.dumps(result, indent=2, ensure_ascii=False))
-
-    # [테스트 2: 병원 처방전 테스트]
-    hospital_image_path = "/Users/ganghyeon-u/Desktop/처방전.png"
-    if os.path.exists(hospital_image_path):
-        print("\n🚀 병원 처방전 OCR 분석 시작...")
-        result = analyze_health_image(hospital_image_path, mode="hospital_prescription")
-        print(json.dumps(result, indent=2, ensure_ascii=False))
-
-        # [테스트 3: 약봉투(약국) 테스트]
-    pill_bag_image_path = "/Users/ganghyeon-u/Desktop/약봉투.png"  # 실제 파일명/확장자에 맞게 수정하세요
-
-    if os.path.exists(pill_bag_image_path):
-        print("\n🚀 약봉투 OCR 분석 시작...")
-        # 약봉투 분석 모드는 'prescription' 입니다.
-        result = analyze_health_image(pill_bag_image_path, mode="prescription")
-        print(json.dumps(result, indent=2, ensure_ascii=False))
-    else:
-        print(f"\n⚠️ 테스트 파일을 찾을 수 없습니다: {pill_bag_image_path}")
+    # 테스트 경로 (흐린 사진이나 빈 사진으로 테스트해보세요)
+    test_img = "/Users/ganghyeon-u/Desktop/알약사진_1.png"
+    if os.path.exists(test_img):
+        res = analyze_health_image(test_img, mode="pill_id")
+        print(json.dumps(res, indent=2, ensure_ascii=False))
