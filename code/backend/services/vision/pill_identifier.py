@@ -11,7 +11,7 @@ warnings.filterwarnings("ignore", category=FutureWarning)
 
 # [경로 설정] 현우님이 지정하신 절대 경로 반영
 RULES_JSON_PATH = "backend/pill_recognition_rules.json"
-MASTER_DB_PATH = "/Users/ganghyeon-u/Desktop/강원대 부트캠프(중급)/code/backend/pill_master.db"
+MASTER_DB_PATH = "/Users/eunseo/Desktop/bootcamp(ai)/pill_master.db"
 
 def _load_recognition_rules():
     """전수 조사 결과가 담긴 JSON 가이드를 불러옵니다."""
@@ -93,7 +93,7 @@ def analyze_pill(image_path, api_key, service_key=None):
     instruction = rules.get("prompt_instruction", "") if rules else ""
     
     try:
-        model = genai.GenerativeModel('gemini-2.0-flash') # 최신 모델 사용
+        model = genai.GenerativeModel('gemini-2.5-flash') # 최신 모델 사용
         img = PIL.Image.open(image_path)
     except:
         model = genai.GenerativeModel('gemini-1.5-flash')
