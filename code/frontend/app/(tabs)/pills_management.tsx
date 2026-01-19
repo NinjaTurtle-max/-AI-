@@ -16,7 +16,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from 'expo-linear-gradient';
 
 import AlarmPresetBar, { type AlarmPreset } from "@/src/components/AlarmPresetBar";
-import SlideUpSheet from "@/src/components/SlideUpSheet";
+import AlarmRegistrationSheet from "@/src/components/AlarmRegistrationSheet";
 import * as Notifications from "expo-notifications";
 
 // ✅ 포그라운드에서도 알림 보이게
@@ -105,10 +105,10 @@ export default function PillsManagementScreen() {
     });
   };
 
-  const saveAlarmForPreset = async () => {
+  const saveAlarmForPreset = async (time: string, pillIds: string[]) => {
     if (!activeKey) return;
 
-    const t = parseHHMM(editTime);
+    const t = parseHHMM(time);
     if (!t) {
       Alert.alert("형식 오류", "시간은 HH:MM 형태로 입력해주세요. 예) 09:00");
       return;
@@ -119,14 +119,13 @@ export default function PillsManagementScreen() {
       return;
     }
 
-    const selectedIds = Array.from(editSelected);
-    if (selectedIds.length === 0) {
+    if (pillIds.length === 0) {
       Alert.alert("선택 필요", "알람을 받을 약을 1개 이상 선택해줘!");
       return;
     }
 
     const selectedNames = pills
-      .filter((p) => editSelected.has(p.id))
+      .filter((p) => pillIds.includes(p.id))
       .map((p) => p.name);
 
     const body = (() => {
@@ -158,14 +157,14 @@ export default function PillsManagementScreen() {
     setPresetMap((prev) => ({
       ...prev,
       [activeKey]: {
-        time: editTime.trim(),
-        selectedPillIds: selectedIds,
+        time: time.trim(),
+        selectedPillIds: pillIds,
         notificationId: id,
       },
     }));
 
     setSheetOpen(false);
-    Alert.alert("설정 완료", `프리셋 ${activeKey} - 매일 ${editTime} 알람이 설정됐어요.`);
+    Alert.alert("설정 완료", `프리셋 ${activeKey} - 매일 ${time} 알람이 설정됐어요.`);
   };
 
   const cancelAlarmForPreset = async () => {
@@ -366,144 +365,18 @@ export default function PillsManagementScreen() {
         </View>
       </ScrollView>
 
-      {/* Slide Up Sheet */}
-      <SlideUpSheet visible={sheetOpen} onClose={() => setSheetOpen(false)}>
-        <Text style={{ fontSize: 18, fontWeight: "900", color: '#2c3e50' }}>
-          프리셋 {activeKey ?? ""}
-        </Text>
-
-        <View style={{ marginTop: 12 }}>
-          <Text style={{ fontWeight: "800", marginBottom: 6, color: '#34495e' }}>시간 (HH:MM)</Text>
-          <TextInput
-            value={editTime}
-            onChangeText={setEditTime}
-            placeholder="예) 09:00"
-            keyboardType="numbers-and-punctuation"
-            style={{
-              borderWidth: 1,
-              borderColor: "#e0e0e0",
-              borderRadius: 12,
-              paddingVertical: 12,
-              paddingHorizontal: 16,
-              backgroundColor: "#fafafa",
-              fontSize: 15,
-            }}
-          />
-          {activeCfg?.notificationId ? (
-            <Text style={{ marginTop: 8, color: "#7f8c8d", fontSize: 13 }}>
-              현재 설정됨: 매일 {activeCfg.time}
-            </Text>
-          ) : null}
-        </View>
-
-        <View style={{ marginTop: 16, flex: 1 }}>
-          <Text style={{ fontWeight: "800", marginBottom: 8, color: '#34495e' }}>
-            알람 받을 약 선택 ({editSelected.size}개)
-          </Text>
-
-          {pills.length === 0 ? (
-            <Text style={{ color: "#999" }}>등록된 약이 없어요.</Text>
-          ) : (
-            <FlatList
-              data={pills}
-              keyExtractor={(p) => p.id}
-              style={{ maxHeight: 260 }}
-              contentContainerStyle={{ gap: 10, paddingBottom: 10 }}
-              renderItem={({ item }) => {
-                const checked = editSelected.has(item.id);
-                return (
-                  <Pressable
-                    onPress={() => togglePill(item.id)}
-                    style={({ pressed }) => [
-                      {
-                        padding: 12,
-                        borderRadius: 14,
-                        borderWidth: 2,
-                        borderColor: checked ? "#667eea" : "#e0e0e0",
-                        backgroundColor: checked ? "#f0f4ff" : "#fff",
-                        flexDirection: "row",
-                        alignItems: "center",
-                        justifyContent: "space-between",
-                      },
-                      pressed && { opacity: 0.9 },
-                    ]}
-                  >
-                    <Text style={{ fontWeight: "700", color: checked ? "#667eea" : "#2c3e50", flex: 1 }}>
-                      {item.name}
-                    </Text>
-                    <View style={{
-                      width: 24,
-                      height: 24,
-                      borderRadius: 12,
-                      backgroundColor: checked ? "#667eea" : "transparent",
-                      borderWidth: 2,
-                      borderColor: checked ? "#667eea" : "#bdc3c7",
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    }}>
-                      {checked && <Ionicons name="checkmark" size={16} color="#fff" />}
-                    </View>
-                  </Pressable>
-                );
-              }}
-            />
-          )}
-        </View>
-
-        <View style={{ flexDirection: "row", gap: 10, marginTop: 16 }}>
-          <Pressable
-            onPress={() => setSheetOpen(false)}
-            style={({ pressed }) => [
-              {
-                flex: 1,
-                paddingVertical: 14,
-                borderRadius: 12,
-                backgroundColor: "#f2f2f2",
-                alignItems: "center",
-              },
-              pressed && { opacity: 0.85 },
-            ]}
-          >
-            <Text style={{ fontWeight: "800", color: '#2c3e50' }}>닫기</Text>
-          </Pressable>
-
-          <Pressable
-            onPress={saveAlarmForPreset}
-            style={({ pressed }) => [
-              {
-                flex: 1,
-                paddingVertical: 14,
-                borderRadius: 12,
-                backgroundColor: "#667eea",
-                alignItems: "center",
-              },
-              pressed && { opacity: 0.85 },
-            ]}
-          >
-            <Text style={{ color: "#fff", fontWeight: "900" }}>완료</Text>
-          </Pressable>
-        </View>
-
-        {activeCfg?.notificationId ? (
-          <Pressable
-            onPress={cancelAlarmForPreset}
-            style={({ pressed }) => [
-              {
-                marginTop: 10,
-                paddingVertical: 12,
-                borderRadius: 12,
-                backgroundColor: "#fff",
-                alignItems: "center",
-                borderWidth: 1,
-                borderColor: "#e0e0e0",
-              },
-              pressed && { opacity: 0.85, backgroundColor: '#f8f9fa' },
-            ]}
-          >
-            <Text style={{ fontWeight: "900", color: '#7f8c8d' }}>이 프리셋 알람 해제</Text>
-          </Pressable>
-        ) : null}
-      </SlideUpSheet>
+      {/* Alarm Registration Sheet */}
+      <AlarmRegistrationSheet
+        visible={sheetOpen}
+        onClose={() => setSheetOpen(false)}
+        presetKey={activeKey ?? ""}
+        currentTime={activeCfg?.time ?? DEFAULT_TIME}
+        currentPillIds={activeCfg?.selectedPillIds ?? []}
+        pills={pills}
+        onSave={saveAlarmForPreset}
+        onCancel={cancelAlarmForPreset}
+        hasActiveAlarm={!!activeCfg?.notificationId}
+      />
     </SafeAreaView>
   );
 }

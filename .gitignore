@@ -14,3 +14,8 @@ __pycache__/
 .DS_Store
 .antigravityrules
 code/.expo/
+
+# local sqlite db
+*.db
+code/backend/*.db
+

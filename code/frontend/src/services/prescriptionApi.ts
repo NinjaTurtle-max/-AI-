@@ -23,8 +23,10 @@ export async function analyzePrescriptionApi(imageUri: string, mode: "prescripti
     }
 
     const data = await response.json();
-    // data structure: { status: "success", message: "...", detected_data: { medications: [...], ... } }
-    return data.detected_data;
+    console.log("📥 [FRONTEND] Received data:", JSON.stringify(data, null, 2));
+    console.log("📥 [FRONTEND] raw_data:", JSON.stringify(data.raw_data, null, 2));
+    // data structure: { status: "success", message: "...", raw_data: { prescribed_drugs: [...], ... } }
+    return data.raw_data;
   } catch (error) {
     console.error("Prescription API Error:", error);
     throw error;
