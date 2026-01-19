@@ -19,3 +19,6 @@ code/.expo/
 *.db
 code/backend/*.db
 
+pill_master.db
+*.db
+*.sqlite3

@@ -152,11 +152,22 @@ def delete_user_drug(record_id):
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
     try:
-        cursor.execute('DELETE FROM user_drugs WHERE id = ?', (record_id,))
+        # 프론트엔드에서 "123" 같은 문자열로 와도 안전하게 int로 변환 시도
+        r_id = int(record_id) 
+        cursor.execute('DELETE FROM user_drugs WHERE id = ?', (r_id,))
         count = cursor.rowcount
         conn.commit()
-        return count > 0
-    except Exception:
+        if count > 0:
+            print(f"🗑️ [삭제 성공] ID {r_id}번 약물이 삭제되었습니다.")
+            return True
+        else:
+            print(f"⚠️ [삭제 실패] ID {r_id}번 데이터가 없습니다.")
+            return False
+    except ValueError:
+        print(f"❌ [에러] ID 형식이 올바르지 않습니다: {record_id}")
+        return False
+    except Exception as e:
+        print(f"❌ [에러] DB 삭제 중 오류: {e}")
         return False
     finally:
         conn.close()
@@ -220,42 +231,3 @@ def check_food_interaction(user_id, detected_food_list):
     
     conn.close()
     return warnings
-
-# =========================================================
-# 테스트 실행
-# =========================================================
-if __name__ == "__main__":
-    init_db()
-    
-    TEST_USER = "user_007"
-    
-    # 1. 사용자 프로필 저장 (기저질환 포함)
-    save_user_profile(
-        TEST_USER, 
-        name="김철수", 
-        age=35, 
-        gender="Male", 
-        diseases=["고혈압", "역류성식도염"], 
-        allergies=["땅콩"]
-    )
-    
-    # 2. 프로필 불러오기 확인
-    profile = get_user_profile(TEST_USER)
-    print(f"\n📂 불러온 프로필: {json.dumps(profile, ensure_ascii=False, indent=2)}")
-
-    # 3. 약물 등록
-    register_user_drug(TEST_USER, "고혈압약", mode="manual")
-    
-    # 4. 금기 데이터 추가
-    add_food_rule("고혈압약", "자몽", "High", "약효가 과도하게 상승하여 저혈압 쇼크 위험이 있습니다.")
-    
-    # 5. 음식 분석 시뮬레이션
-    print("\n🔍 음식 상호작용 분석 중...")
-    detected_foods = ["자몽 샐러드", "샌드위치"]
-    alerts = check_food_interaction(TEST_USER, detected_foods)
-    
-    if alerts:
-        for alert in alerts:
-            print(f"🚨 [경고] {alert['drug']} 복용 중에는 '{alert['food']}' 주의! -> {alert['message']}")
-    else:
-        print("✅ 특이사항 없음")

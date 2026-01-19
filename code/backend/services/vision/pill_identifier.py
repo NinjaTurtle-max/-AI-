@@ -1,175 +1,161 @@
-import os
-import requests
+import sqlite3
 import json
 import google.generativeai as genai
 import PIL.Image
-from urllib.parse import quote, unquote
+import os
+from urllib.parse import unquote
+import warnings
 
-# 식약처 의약품 낱알식별 정보 엔드포인트
-PILL_IDENT_API_URL = "http://apis.data.go.kr/1471000/MdcinGrnIdntfcInfoService03/getMdcinGrnIdntfcInfoList03"
+# [설정] 경고 차단
+warnings.filterwarnings("ignore", category=FutureWarning)
 
-def _call_pill_api_logic(pill_features, service_key):
+# [경로 설정] 현우님이 지정하신 절대 경로 반영
+RULES_JSON_PATH = "backend/pill_recognition_rules.json"
+MASTER_DB_PATH = "/Users/ganghyeon-u/Desktop/강원대 부트캠프(중급)/code/backend/pill_master.db"
+
+def _load_recognition_rules():
+    """전수 조사 결과가 담긴 JSON 가이드를 불러옵니다."""
+    try:
+        if os.path.exists(RULES_JSON_PATH):
+            with open(RULES_JSON_PATH, "r", encoding="utf-8") as f:
+                return json.load(f)
+    except Exception as e:
+        print(f"⚠️ 규칙 파일 로드 실패: {e}")
+    return None
+
+def _search_local_pill_db(pill_features):
     """
-    [내부 함수] 식약처 API 점진적 검색 (URL 수동 조립 및 강제 전송)
-    이유: requests 라이브러리의 자동 인코딩이 식약처 API 키와 충돌하는 문제를 방지하기 위함.
+    [핵심 로직] 로컬 DB(ai_pharmacist.db)에서 특징 기반 전수 조사 필터링
     """
-    if not service_key:
-        print("⚠️ 식약처 API 키 없음")
+    if not os.path.exists(MASTER_DB_PATH):
+        print(f"❌ DB 파일을 찾을 수 없습니다: {MASTER_DB_PATH}")
         return []
 
-    # 1. API 키 안전 처리
-    # 어떤 형태(Encoding/Decoding)의 키가 들어와도 일단 원본(Decoding) 상태로 만듦
-    raw_service_key = unquote(service_key) 
-    
-    # 우리가 직접 URL에 넣을 것이므로 안전하게 인코딩 (특수문자 처리)
-    safe_key = quote(raw_service_key, safe='') 
+    conn = sqlite3.connect(MASTER_DB_PATH)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
 
-    # 2. 검색 전략 수립
-    search_strategies = []
+    # Gemini가 추출한 특징들
+    target_front = pill_features.get('print_front', '')
+    target_back = pill_features.get('print_back', '')
+    target_color = pill_features.get('color_class1', '')
+    target_shape = pill_features.get('drug_shape', '')
 
-    # 전략 A: AI가 추출한 모든 정보 사용 (이름 포함)
-    search_strategies.append({"desc": "1. 정밀 검색 (전체 일치)", "params": pill_features})
-    
-    # 전략 B: 약 이름은 무시하고 '식별 문자' 위주 검색 (가장 강력함)
-    p_text = pill_features.copy()
-    p_text["item_name"] = "" 
-    if p_text.get("print_front") or p_text.get("print_back"):
-        search_strategies.append({"desc": "2. 식별문자 우선 검색 (이름 무시)", "params": p_text})
+    # 1차 쿼리: 각인(print) 정보로 후보군 추출 (LIKE 검색으로 유연하게 대응)
+    query = "SELECT * FROM pill_master_info WHERE (print_front LIKE ? OR print_back LIKE ?)"
+    params = (f"%{target_front}%", f"%{target_back}%")
 
-    # 전략 C: 식별 문자 앞/뒤 교차 검색
-    f, b = pill_features.get("print_front", ""), pill_features.get("print_back", "")
-    if f and b:
-        p_swap = pill_features.copy()
-        p_swap["item_name"] = ""
-        p_swap["print_front"], p_swap["print_back"] = b, f
-        search_strategies.append({"desc": "3. 앞뒤 교차 검색", "params": p_swap})
+    # 이름 정보가 있다면 추가 검색 조건에 포함
+    if pill_features.get('item_name'):
+        query += " OR item_name LIKE ?"
+        params += (f"%{pill_features['item_name']}%",)
+
+    print(f"📡 [Local DB Scan] '{target_front}/{target_back}' 특징으로 전수 조사 중...")
+
+    try:
+        cursor.execute(query, params)
+        rows = cursor.fetchall()
         
-    # 전략 D: 식별 문자가 없을 때 모양/색상으로만 검색
-    if not f and not b:
-        p_shape = {
-            "color_class1": pill_features.get("color_class1"),
-            "drug_shape": pill_features.get("drug_shape"),
-            "item_name": ""
-        }
-        if p_shape["color_class1"] or p_shape["drug_shape"]:
-            search_strategies.append({"desc": "4. 모양/색상 검색 (식별문자 없음)", "params": p_shape})
-
-    # 3. 전략 실행 Loop
-    for strat in search_strategies:
-        print(f"🔎 [API 요청] {strat['desc']}")
-        
-        # --- [핵심] URL 수동 조립 (requests 간섭 차단) ---
-        query_parts = []
-        params = strat['params']
-        
-        if params.get('item_name'):
-            query_parts.append(f"item_name={quote(params['item_name'])}")
-        if params.get('print_front'):
-            query_parts.append(f"print_front={quote(params['print_front'])}")
-        if params.get('print_back'):
-            query_parts.append(f"print_back={quote(params['print_back'])}")
-        if params.get('color_class1'):
-            query_parts.append(f"color_class1={quote(params['color_class1'])}")
-        if params.get('drug_shape'):
-            query_parts.append(f"drug_shape={quote(params['drug_shape'])}")
-
-        # 검색 조건이 하나도 없으면 스킵
-        if not query_parts:
-            continue
-
-        query_string = "&".join(query_parts)
-        final_url = f"{PILL_IDENT_API_URL}?serviceKey={safe_key}&type=json&numOfRows=10&pageNo=1&{query_string}"
-        
-        # [디버깅용] 생성된 URL 확인
-        # print(f"🔗 URL: {final_url}")
-
-        try:
-            # Session + PreparedRequest 사용으로 URL 변조 방지
-            session = requests.Session()
-            req = requests.Request('GET', final_url)
-            prepped = session.prepare_request(req)
-            prepped.url = final_url # URL 강제 덮어쓰기
+        # 2차 필터링: 모양과 색상 유사도 체크
+        final_candidates = []
+        for row in rows:
+            item = dict(row)
+            # 가중치 계산 (정확히 일치할수록 상위 노출)
+            score = 0
+            if target_front and target_front in (item.get('print_front') or ''): score += 3
+            if target_back and target_back in (item.get('print_back') or ''): score += 3
+            if target_shape and target_shape == item.get('drug_shape'): score += 1
+            if target_color and target_color == item.get('color_class1'): score += 1
             
-            res = session.send(prepped, timeout=10)
-            
-            if res.status_code == 200:
-                try:
-                    data = res.json()
-                    items = data.get('body', {}).get('items', [])
-                    
-                    if items:
-                        print(f"   ✅ {len(items)}건 발견! (성공)")
-                        return items
-                    else:
-                        print("   ❌ 결과 0건")
-                except json.JSONDecodeError:
-                    print("   ⚠️ 응답 파싱 실패 (API 키 에러 또는 XML 반환됨)")
-            else:
-                print(f"   ⚠️ API 상태 코드 에러: {res.status_code}")
-                
-        except Exception as e:
-            print(f"   ⚠️ 연결 실패: {e}")
+            item['match_score'] = score
+            final_candidates.append(item)
 
-    print("🏁 모든 검색 전략 실패")
-    return []
+        # 점수 높은 순으로 정렬
+        final_candidates.sort(key=lambda x: x['match_score'], reverse=True)
+        
+        conn.close()
+        return final_candidates[:10]
 
-def analyze_pill(image_path, api_key, service_key):
-    """
-    [Main] 알약 이미지 분석 및 DB 검색
-    """
-    if not api_key: return {"error": "Gemini API 키 없음"}
+    except Exception as e:
+        print(f"⚠️ DB 검색 에러: {e}")
+        if 'conn' in locals(): conn.close()
+        return []
+
+def analyze_pill(image_path, api_key, service_key=None):
+    """[Main] Gemini Vision -> Local DB 필터링"""
+    if not api_key:
+        return {"error": "API 키가 없습니다."}
     
-    # Gemini 키 안전하게 디코딩
     genai.configure(api_key=unquote(api_key))
+    rules = _load_recognition_rules()
+    
+    # JSON 가이드에서 지침 추출
+    instruction = rules.get("prompt_instruction", "") if rules else ""
     
     try:
-        model = genai.GenerativeModel('gemini-2.5-flash')
+        model = genai.GenerativeModel('gemini-2.0-flash') # 최신 모델 사용
         img = PIL.Image.open(image_path)
-    except Exception as e:
-        return {"error": f"이미지/모델 로드 실패: {str(e)}"}
+    except:
+        model = genai.GenerativeModel('gemini-1.5-flash')
+        img = PIL.Image.open(image_path)
 
-    prompt = """
-    [알약 식별 전문가]
-    이 사진 속 알약의 특징(글자, 색상, 모양)을 JSON으로 추출해.
-    
-    1. print_front/back: 알약 표면의 글자(알파벳, 숫자)를 있는 그대로 읽어라. (매우 중요)
-    2. item_name: 약 봉투에 이름이 없으면 추측하지 말고 빈칸("").
-    3. 색상/모양: 식약처 표준 용어 사용 (하양, 노랑 / 원형, 타원형, 장방형 등).
-    
-    응답 형식:
-    {
-        "debug_thought": "식별 근거",
-        "item_name": "", 
-        "print_front": "", 
-        "print_back": "", 
-        "color_class1": "", 
-        "drug_shape": ""
-    }
+    # [프롬프트] 전수 조사 규칙을 Gemini에게 주입
+    prompt = f"""
+    [알약 식별 전문가] 
+    사진 속 알약의 특징을 JSON으로 추출하십시오.
+
+    [필독: 각인 추출 규칙]
+    {instruction}
+    - 람다 기호(밑변 없는 A 모양)는 'Λ'로 읽으십시오.
+    - 보이는 그대로를 텍스트화하되 기호는 한글 명칭(분할선, 마크 등)으로 변환하십시오.
+
+    응답 형식: {{"item_name":"", "print_front":"", "print_back":"", "color_class1":"", "drug_shape":""}}
     """
     
     try:
         response = model.generate_content([prompt, img])
-        content = response.text.strip()
+        content = response.text.strip().replace('```json', '').replace('```', '')
+        detected_features = json.loads(content)
         
-        # JSON 클리닝
-        if "```json" in content:
-            content = content.split("```json")[1].split("```")[0].strip()
-        elif "```" in content:
-            content = content.split("```")[1].split("```")[0].strip()
-            
-        result = json.loads(content)
-        
-        # 식약처 API 호출 (강제 URL 전송 방식 적용)
-        candidates = _call_pill_api_logic(result, service_key)
+        # 로컬 DB 전수 조사 필터링 실행
+        candidates = _search_local_pill_db(detected_features)
         
         return {
             "mode": "pill_id",
-            "detected_features": result,
+            "detected_features": detected_features,
             "candidates": candidates,
             "total_found": len(candidates)
         }
-
-    except json.JSONDecodeError:
-        return {"error": f"AI 응답 파싱 실패: {content}"}
     except Exception as e:
-        return {"error": f"알약 분석 실패: {str(e)}"}
+        return {"error": f"분석 실패: {str(e)}"}
+
+# =========================================================
+# [검증 테스트 블록] - 타치온정 정밀 테스트 (TAT / Da)
+# =========================================================
+if __name__ == "__main__":
+    print("\n🧪 [테스트 시나리오] 타치온정 정밀 검색 (Da / TAT)")
+    print("-" * 50)
+    
+    # 실제 타치온정의 각인 특징 반영
+    dummy_detected = {
+        "item_name": "",          
+        "print_front": "TAT",      # 제조사(대원제약 등) 마크/이니셜
+        "print_back": "Da",      # 타치온 식별 각인
+        "color_class1": "하양", 
+        "drug_shape": "원형"
+    }
+
+    print(f"📝 가상 분석 특징: {json.dumps(dummy_detected, ensure_ascii=False)}")
+    
+    # 로컬 DB 검색 함수 호출
+    results = _search_local_pill_db(dummy_detected)
+    
+    if results:
+        print(f"\n✅ 검색 성공! {len(results)}건의 후보 발견")
+        for i, res in enumerate(results[:3], 1):
+            print(f"{i}. [{res['item_name']}]")
+            print(f"   - DB 각인: {res['print_front']} / {res['print_back']}")
+            print(f"   - 외형: {res['drug_shape']} ({res['color_class1']})")
+            print(f"   - 매칭 점수: {res['match_score']}")
+    else:
+        print("\n❌ 검색 결과가 없습니다. 'Da' 또는 'TAT'가 DB에 있는지 확인이 필요합니다.")
