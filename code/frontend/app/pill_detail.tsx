@@ -9,7 +9,7 @@ import {
 } from "react-native";
 import { useLocalSearchParams } from "expo-router";
 import BackButton from "@/src/components/BackButton";
-import { callConsultationApi } from "@/src/services/chatApi";
+import { callConsultationApi, callConsultationByName } from "@/src/services/chatApi";
 
 export default function PillDetailScreen() {
   const { id, name } = useLocalSearchParams<{ id: string; name?: string }>();
@@ -21,13 +21,32 @@ export default function PillDetailScreen() {
     if (!id || loading) return;
     setLoading(true);
     setResult("");
+
     try {
-      const text = await callConsultationApi(String(id), topic);
+      let text: string;
+
+      // 처방전/약봉투에서 추가한 약인지 확인 (ID가 "med-"로 시작)
+      if (String(id).startsWith("med-")) {
+        // 약 이름으로 조회
+        if (!name) {
+          setResult("약 이름 정보가 없습니다.");
+          return;
+        }
+        text = await callConsultationByName(String(name), topic);
+      } else {
+        // 기존 YOLO 방식 (class_id 사용)
+        text = await callConsultationApi(String(id), topic);
+      }
+
       setResult(text);
+    } catch (e) {
+      console.error(e);
+      setResult("조회 중 오류가 발생했습니다.");
     } finally {
       setLoading(false);
     }
   };
+
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: "#fff" }}>

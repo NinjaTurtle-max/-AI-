@@ -1,132 +1,145 @@
-import React, { useRef, useEffect } from "react";
-import { FlatList, SafeAreaView, StyleSheet, View, Text } from "react-native";
+import React, { useState } from "react";
+import { SafeAreaView, StyleSheet, View, Text, Alert, TouchableOpacity, ActivityIndicator, Image } from "react-native";
 import * as ImagePicker from "expo-image-picker";
+import { Ionicons } from '@expo/vector-icons';
 
-import { useChat } from "@/src/hooks/useChat";
-import { ChatItem } from "@/src/components/ChatItem";
-import { InputBar } from "@/src/components/InputBar";
 import BackButton from "@/src/components/BackButton";
-import { usePrescriptionChat } from "@/src/hooks/usePrescriptionChat";
+import AnalysisResultView from "@/src/components/AnalysisResultView";
+import { usePills } from "@/src/store/PillsContext";
+import { analyzePrescriptionApi } from "@/src/services/prescriptionApi";
 
-export default function ChatScreen() {
-  const {
-    messages,
-    input,
-    setInput,
-    loading,
-    previewUri,
-    setPreviewUri,
-    onSend,
-    clearPreview,
-  } = usePrescriptionChat(
-    "안녕하세요! 병원 처방전 사진을 올려주시면 약 정보를 분석해드릴게요."
-  );
+export default function PrescriptionAnalysisScreen() {
+  const [status, setStatus] = useState<"initial" | "loading" | "success" | "error">("initial");
+  const [analysisResult, setAnalysisResult] = useState<any>(null);
+  const [previewUri, setPreviewUri] = useState<string | null>(null);
 
-  const flatListRef = useRef<FlatList>(null);
-  useEffect(() => {
-    flatListRef.current?.scrollToEnd({ animated: true });
-  }, [messages]);
+  const { addPill } = usePills();
+
+  const handleAnalysis = async (uri: string) => {
+    setPreviewUri(uri);
+    setStatus("loading");
+
+    try {
+      const result = await analyzePrescriptionApi(uri, "hospital_prescription");
+      if (result && (result.prescribed_drugs || result.medications || result.detected_items)) {
+        setAnalysisResult(result);
+        setStatus("success");
+      } else {
+        Alert.alert("분석 실패", "약물 정보를 찾을 수 없습니다.");
+        setStatus("error");
+      }
+    } catch (e) {
+      console.error(e);
+      Alert.alert("오류", "분석 중 문제가 발생했습니다.");
+      setStatus("error");
+    }
+  };
 
   const pickFromCamera = async () => {
-    if (loading) return;
-
     const perm = await ImagePicker.requestCameraPermissionsAsync();
     if (!perm.granted) return alert("카메라 권한이 필요합니다.");
 
     const res = await ImagePicker.launchCameraAsync({ quality: 0.8 });
-    if (!res.canceled) setPreviewUri(res.assets[0].uri);
+    if (!res.canceled) {
+      handleAnalysis(res.assets[0].uri);
+    }
   };
 
   const pickFromGallery = async () => {
-    if (loading) return;
-
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) return alert("사진첩 권한이 필요합니다.");
 
     const res = await ImagePicker.launchImageLibraryAsync({ quality: 0.8 });
-    if (!res.canceled) setPreviewUri(res.assets[0].uri);
+    if (!res.canceled) {
+      handleAnalysis(res.assets[0].uri);
+    }
+  };
+
+  const handleAddPill = (pill: { id: string; name: string }) => {
+    addPill(pill);
+    Alert.alert("추가 완료", `"${pill.name}"(이)가 복약 관리에 추가되었습니다.`);
+  };
+
+  const handleReset = () => {
+    setStatus("initial");
+    setAnalysisResult(null);
+    setPreviewUri(null);
   };
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <BackButton />
-        <Text style={styles.headerTitle}>처방전 분석</Text>
-      </View>
-      <FlatList
-        ref={flatListRef}
-        data={messages}
-        keyExtractor={(m) => m.id}
-        renderItem={({ item }) => (
-          <ChatItem item={item} loading={loading} styles={styles} />
-        )}
-        contentContainerStyle={styles.list}
-      />
+      {/* Header - Only show in initial or loading/error states, ResultView has its own header-like title */}
+      {status !== "success" && (
+        <View style={styles.header}>
+          <BackButton />
+          <Text style={styles.headerTitle}>처방전 분석</Text>
+        </View>
+      )}
 
-      <InputBar
-        input={input}
-        setInput={setInput}
-        loading={loading}
-        previewUri={previewUri}
-        onClearPreview={clearPreview}
-        onPickCamera={pickFromCamera}
-        onPickGallery={pickFromGallery}
-        // Force 'hospital_prescription' mode
-        onSend={() => void onSend("hospital_prescription")}
-        styles={styles}
-      />
+      {/* 1. Initial State */}
+      {status === "initial" && (
+        <View style={styles.centerContainer}>
+          <Ionicons name="document-text-outline" size={80} color="#bdc3c7" />
+          <Text style={styles.instructionText}>처방전 사진을 찍거나 올려주세요</Text>
+          <Text style={styles.subInstructionText}>
+            병원 처방전을 분석하여{"\n"}약물 정보를 상세히 알려드립니다.
+          </Text>
+
+          <View style={styles.buttonRow}>
+            <TouchableOpacity style={styles.actionButton} onPress={pickFromCamera}>
+              <Ionicons name="camera" size={24} color="#fff" />
+              <Text style={styles.buttonText}>카메라</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.actionButton, styles.galleryButton]} onPress={pickFromGallery}>
+              <Ionicons name="images" size={24} color="#fff" />
+              <Text style={styles.buttonText}>앨범</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
+      {/* 2. Loading State */}
+      {status === "loading" && (
+        <View style={styles.centerContainer}>
+          {previewUri && <Image source={{ uri: previewUri }} style={styles.previewImage} />}
+          <ActivityIndicator size="large" color="#3498db" />
+          <Text style={styles.loadingText}>처방전을 분석하고 있습니다...</Text>
+        </View>
+      )}
+
+      {/* 3. Success State */}
+      {status === "success" && analysisResult && (
+        <View style={{ flex: 1 }}>
+          {/* Custom Header for Result Screen to include Back Button */}
+          <View style={styles.header}>
+            <BackButton onPress={handleReset} />
+            <Text style={styles.headerTitle}>분석 결과</Text>
+          </View>
+          <AnalysisResultView
+            result={analysisResult}
+            onAddPill={handleAddPill}
+            onReset={handleReset}
+          />
+        </View>
+      )}
+
+      {/* 4. Error State */}
+      {status === "error" && (
+        <View style={styles.centerContainer}>
+          <Ionicons name="alert-circle-outline" size={60} color="#e74c3c" />
+          <Text style={styles.errorText}>분석에 실패했습니다.</Text>
+          <TouchableOpacity style={styles.retryButton} onPress={handleReset}>
+            <Text style={styles.retryButtonText}>다시 시도하기</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#fff" },
-  list: { padding: 16, gap: 10 },
-  bubble: { maxWidth: "85%", padding: 12, borderRadius: 14, marginBottom: 4 },
-  userBubble: { alignSelf: "flex-end", backgroundColor: "#e8f0ff" },
-  assistantBubble: { alignSelf: "flex-start", backgroundColor: "#f2f2f2" },
-  msgText: { fontSize: 15, lineHeight: 20 },
-  title: { fontWeight: "700", marginBottom: 6 },
-  small: { fontSize: 12, opacity: 0.8, marginTop: 2 },
-  chipContainer: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginVertical: 6 },
-  chip: { paddingVertical: 8, paddingHorizontal: 12, borderRadius: 20, backgroundColor: "#333" },
-  chipText: { color: "#fff", fontWeight: "700", fontSize: 13 },
-  inputBar: { flexDirection: "row", alignItems: "center", padding: 10, borderTopWidth: 1, borderTopColor: "#eee" },
-  photoBtn: { padding: 10, borderRadius: 10, backgroundColor: "#f2f2f2", marginRight: 8 },
-  input: { flex: 1, paddingVertical: 10, paddingHorizontal: 12, backgroundColor: "#fafafa", borderRadius: 12 },
-  sendBtn: { marginLeft: 8, paddingVertical: 10, paddingHorizontal: 14, borderRadius: 12, backgroundColor: "#111" },
-  sendBtnText: { color: "#fff", fontWeight: "700" },
-  chatImage: { width: 220, height: 220, borderRadius: 12, backgroundColor: "#ddd" },
-  previewWrap: { width: 44, height: 44, marginRight: 8, position: "relative" },
-  previewThumb: { width: 44, height: 44, borderRadius: 10, backgroundColor: "#ddd" },
-  previewX: {
-    position: "absolute",
-    top: -6,
-    right: -6,
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    backgroundColor: "#111",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  photoBtnPressed: { transform: [{ scale: 0.92 }], backgroundColor: "#e0e0e0" },
-  typingBubble: {
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    borderRadius: 18,
-  },
-  dotsRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-  },
-  dot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: "#999",
-  },
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -140,5 +153,80 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "800",
     marginLeft: 4,
+  },
+  centerContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  instructionText: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#34495e',
+    marginTop: 20,
+    marginBottom: 10,
+  },
+  subInstructionText: {
+    fontSize: 15,
+    color: '#7f8c8d',
+    textAlign: 'center',
+    marginBottom: 30,
+    lineHeight: 22,
+  },
+  buttonRow: {
+    flexDirection: 'row',
+    gap: 15,
+  },
+  actionButton: {
+    flexDirection: 'row',
+    backgroundColor: '#3498db',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 30,
+    alignItems: 'center',
+    gap: 8,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    elevation: 4,
+  },
+  galleryButton: {
+    backgroundColor: '#9b59b6',
+  },
+  buttonText: {
+    color: '#fff',
+    fontWeight: '600',
+    fontSize: 16,
+  },
+  previewImage: {
+    width: 200,
+    height: 200,
+    borderRadius: 12,
+    marginBottom: 20,
+    resizeMode: 'cover',
+  },
+  loadingText: {
+    marginTop: 20,
+    fontSize: 16,
+    color: '#34495e',
+    fontWeight: '600',
+  },
+  errorText: {
+    fontSize: 18,
+    color: '#34495e',
+    marginTop: 20,
+    marginBottom: 20,
+  },
+  retryButton: {
+    backgroundColor: '#95a5a6',
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 20,
+  },
+  retryButtonText: {
+    color: '#fff',
+    fontWeight: '600',
   },
 });

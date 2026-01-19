@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, ScrollView, SafeAreaView, TouchableOpacity, Ima
 import { Stack } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useFoodAnalysis } from '@/src/hooks/useFoodAnalysis';
+import BackButton from '@/src/components/BackButton';
 
 const FoodAnalysisScreen = () => {
     const {
@@ -146,8 +147,15 @@ const FoodAnalysisScreen = () => {
 
     return (
         <SafeAreaView style={styles.container}>
-            <Stack.Screen options={{ title: "음식 분석", headerShadowVisible: false, headerStyle: { backgroundColor: '#f5f5f5' } }} />
+            <Stack.Screen options={{ headerShown: false }} />
             <StatusBar barStyle="dark-content" />
+
+            {/* Custom Header */}
+            <View style={styles.headerBar}>
+                <BackButton />
+                <Text style={styles.headerTitle}>음식 분석</Text>
+            </View>
+
             {renderContent()}
         </SafeAreaView>
     );
@@ -157,6 +165,22 @@ const styles = StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: '#f5f5f5',
+    },
+    // Custom Header Styles matching prescription.tsx
+    headerBar: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 8,
+        paddingVertical: 6,
+        borderBottomWidth: 1,
+        borderBottomColor: '#e0e0e0', // Slightly darker than #eee for visibility on #f5f5f5
+        backgroundColor: '#f5f5f5',
+    },
+    headerTitle: {
+        fontSize: 16,
+        fontWeight: '800',
+        marginLeft: 4,
+        color: '#111',
     },
     centerContainer: {
         flex: 1,
@@ -401,5 +425,6 @@ const styles = StyleSheet.create({
         color: '#7f8c8d',
     },
 });
+
 
 export default FoodAnalysisScreen;

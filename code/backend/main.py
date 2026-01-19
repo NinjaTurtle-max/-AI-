@@ -156,6 +156,55 @@ def consult_drug(request: ConsultationRequest):
         logging.error(traceback.format_exc())
         raise HTTPException(status_code=500, detail=f"상담 생성 오류: {str(e)}")
 
+class ConsultByNameRequest(BaseModel):
+    drug_name: str
+    topic: str
+
+@app.post("/consult-by-name")
+def consult_drug_by_name(request: ConsultByNameRequest):
+    """
+    [기능 2-1] 약품명으로 상담 (처방전/약봉투에서 추가한 약 지원)
+    """
+    from services.drug_api import search_drug_by_name
+    
+    # 1. 약품명으로 itemSeq 검색
+    drug_info = search_drug_by_name(request.drug_name)
+    
+    if not drug_info:
+        raise HTTPException(
+            status_code=404, 
+            detail=f"'{request.drug_name}' 약품 정보를 찾을 수 없습니다. 정확한 약품명을 확인해주세요."
+        )
+    
+    # 2. DUR 리포트 가져오기
+    drug_report = get_full_drug_report(drug_info["item_seq"], drug_info["item_name"])
+    
+    # 3. AI 상담 생성 (기존 generate_ai_advice 재사용)
+    # ConsultationRequest 형식으로 변환
+    mock_request = ConsultationRequest(
+        class_id=0,  # 더미 값 (사용되지 않음)
+        user_profile=UserProfile(
+            symptom="약품 정보 문의",
+            age=30,
+            condition="일반"
+        ),
+        options=[request.topic]
+    )
+    
+    try:
+        advice = generate_ai_advice(drug_report, mock_request)
+        return {
+            "drug_name": drug_info["item_name"],
+            "selected_topic": request.topic,
+            "advice": advice
+        }
+    
+    except Exception as e:
+        logging.error("❌ /consult-by-name crashed: %s", e)
+        logging.error(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=f"상담 생성 오류: {str(e)}")
+
+
 @app.post("/analyze-food-interaction")
 async def analyze_food(file: UploadFile = File(...)):
     """

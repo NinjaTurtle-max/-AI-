@@ -6,6 +6,40 @@ from config import * # URL 변수들이 config에 저장되어 있다고 가정
 DATA_GO_KR_KEY = os.getenv("KEY_E_DRUG") or os.getenv("DATA_GO_KR_KEY")
 USE_MOCK_DATA = os.getenv("USE_MOCK_DATA", "True").lower() == "true"
 
+def search_drug_by_name(drug_name):
+    """
+    약품명으로 검색하여 itemSeq(품목기준코드)를 반환합니다.
+    여러 결과가 있을 경우 첫 번째 결과를 반환합니다.
+    
+    Returns:
+        dict: {"item_seq": "...", "item_name": "..."} 또는 None
+    """
+    if USE_MOCK_DATA:
+        return {"item_seq": "999999999", "item_name": drug_name}
+    
+    try:
+        params = {
+            "serviceKey": DATA_GO_KR_KEY,
+            "type": "json",
+            "pageNo": 1,
+            "numOfRows": 5,
+            "itemName": drug_name.strip()
+        }
+        
+        res = requests.get(URL_DRUG_INFO, params=params, timeout=5)
+        if res.status_code == 200:
+            items = res.json().get('body', {}).get('items', [])
+            if items and len(items) > 0:
+                first_item = items[0]
+                return {
+                    "item_seq": first_item.get("itemSeq"),
+                    "item_name": first_item.get("itemName", drug_name)
+                }
+    except Exception as e:
+        print(f"❌ 약품 검색 실패: {drug_name}, 에러: {e}")
+    
+    return None
+
 def get_full_drug_report(item_seq, item_name):
     """
     제공된 모든 DUR API 엔드포인트를 호출하여 종합적인 약품 안전 리포트를 생성합니다.
