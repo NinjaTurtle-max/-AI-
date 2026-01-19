@@ -11,8 +11,10 @@ export async function fakeIdentify(imageUri: string): Promise<IdentifyResult> {
       name: "pill.jpg",
       type: "image/jpeg",
     } as any);
+    // IMPORTANT: mode must be sent as form data, not URL query parameter
+    formData.append("mode", "pill_id");
 
-    const response = await fetch(`${BACKEND_URL}/register-drug-image?mode=pill_id`, {
+    const response = await fetch(`${BACKEND_URL}/register-drug-image`, {
       method: "POST",
       body: formData,
       headers: {
