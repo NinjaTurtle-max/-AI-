@@ -4,11 +4,12 @@ export type Pill = {
   id: string;
   name: string;
   addedAt: number;
+  description?: string; // 효능, 치료제 분류 등
 };
 
 type PillsContextValue = {
   pills: Pill[];
-  addPill: (pill: { id: string; name: string }) => void;
+  addPill: (pill: { id: string; name: string; description?: string }) => void;
   removePill: (id: string) => void;
   clearPills: () => void;
 };
@@ -18,12 +19,17 @@ const PillsContext = createContext<PillsContextValue | null>(null);
 export function PillsProvider({ children }: { children: React.ReactNode }) {
   const [pills, setPills] = useState<Pill[]>([]);
 
-  const addPill = (pill: { id: string; name: string }) => {
+  const addPill = (pill: { id: string; name: string; description?: string }) => {
     setPills((prev) => {
       // 중복 방지(이미 있으면 추가 안 함)
       if (prev.some((p) => p.id === pill.id)) return prev;
 
-      return [{ id: pill.id, name: pill.name, addedAt: Date.now() }, ...prev];
+      return [{
+        id: pill.id,
+        name: pill.name,
+        description: pill.description,
+        addedAt: Date.now()
+      }, ...prev];
     });
   };
 
