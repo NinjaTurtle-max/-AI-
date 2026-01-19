@@ -12,35 +12,44 @@ DATA_GO_KR_KEY = os.getenv("KEY_E_DRUG")
 USE_MOCK_DATA = os.getenv("USE_MOCK_DATA", "False").lower() == "true"
 
 # =========================================================
-# [✨ 핵심] 이 함수가 있어야 에러가 안 납니다!
+# 1. 텍스트 요약 함수 (핵심 2문장 추출)
 # =========================================================
 def summarize_text(text_input):
     """
-    긴 텍스트(효능/용법)나 리스트에서 핵심 1문장만 추출합니다.
-    (UI 미리보기용 짧은 텍스트 생성)
+    텍스트나 리스트를 입력받아 핵심 2문장으로 요약합니다.
+    HTML 태그를 제거하고, 가독성을 위해 내용을 정제합니다.
     """
     if not text_input:
         return "정보 없음"
     
-    # 리스트면 첫 번째 항목 사용, 아니면 문자열 변환
+    # 1. 리스트 처리: 누락 없이 쉼표로 연결
     if isinstance(text_input, list):
-        if len(text_input) > 0:
-            full_text = str(text_input[0])
-        else:
-            return "정보 없음"
+        # 빈 값 제거 후 연결
+        valid_items = [str(item).strip() for item in text_input if item]
+        full_text = ", ".join(valid_items)
     else:
         full_text = str(text_input)
     
-    # HTML 태그 및 특수문자 간단 정리
+    # 2. 전처리: HTML 태그 및 불필요한 공백 제거
     full_text = full_text.replace("<p>", "").replace("</p>", " ").replace("<br>", " ")
     full_text = full_text.replace("\r", "").replace("\n", " ")
+    full_text = " ".join(full_text.split()) # 다중 공백 제거
 
-    # 문장 끝(. )을 기준으로 자르거나, 너무 길면 50자로 자름
-    summary = full_text.split('.')[0]
-    if len(summary) > 50:
-        summary = summary[:50] + "..."
+    # 3. 문장 단위로 자르기 (마침표 기준)
+    # 빈 문장(공백만 있는 것)은 제외하고 리스트로 만듦
+    sentences = [s.strip() for s in full_text.split('.') if s.strip()]
+
+    # 4. 최대 2문장까지만 추출하여 결합
+    if len(sentences) > 0:
+        # 앞에서부터 2개만 가져와서 다시 마침표와 공백으로 연결
+        summary = ". ".join(sentences[:2])
+        # 문장 끝에 마침표가 빠지게 되므로 다시 붙여줌
+        summary += "."
+    else:
+        # 마침표가 하나도 없는 경우 그대로 반환
+        summary = full_text
         
-    return summary.strip()
+    return summary
 
 # =========================================================
 # 2. 약품 검색 함수 (이름 -> 코드/상세 변환)
@@ -194,7 +203,7 @@ def get_full_drug_report(item_seq, item_name):
             report['safety'][title] = ["연결 에러"]
 
     # =========================================================
-    # [✨ 핵심] 요약 정보 생성 (이 부분이 추가되어야 합니다!)
+    # [✨ 핵심] 요약 정보 생성 (2문장 요약 적용)
     # =========================================================
     basic_info = report.get('basic', {})
     
@@ -213,7 +222,7 @@ def get_full_drug_report(item_seq, item_name):
     for key, val in report['safety'].items():
         if val and isinstance(val, list):
             first_msg = str(val[0])
-            if "없음" not in first_msg and "실패" not in first_msg:
+            if "없음" not in first_msg and "실패" not in first_msg and "에러" not in first_msg:
                 safety_summary_list.append(key)
     
     if safety_summary_list:

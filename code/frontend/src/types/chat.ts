@@ -1,6 +1,18 @@
 export type IdentifyResult = {
-  best_match: { id: string; name: string; score: number } | null;
-  candidates: { id: string; name: string; score: number }[];
+  best_match: {
+    id: string;
+    name: string;
+    score: number;
+    effect?: string;
+    administer_method?: string;
+  } | null;
+  candidates: {
+    id: string;
+    name: string;
+    score: number;
+    effect?: string;
+    administer_method?: string;
+  }[];
   extracted_text: string;
 };
 

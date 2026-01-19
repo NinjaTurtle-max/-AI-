@@ -27,7 +27,8 @@ from database import (
     get_user_drug_list, 
     init_db, 
     save_user_profile,  # ✨ 추가됨
-    get_user_profile    # ✨ 추가됨
+    get_user_profile,   # ✨ 추가됨
+    delete_user_drug    # ✨ 삭제 기능 추가
 )
 from config import *
 
@@ -180,12 +181,14 @@ async def register_drug_by_image(file: UploadFile = File(...), mode: str = Form(
                 saved_count += 1
                 print(f"💾 DB 저장: {pill_name}")
 
-        return {
+        response_data = {
             "status": "success",
             "message": f"{saved_count}개의 약물이 등록되었습니다.",
             "detected_pills": detected_pills,
             "raw_data": analysis_result
         }
+        print(f"📤 [RESPONSE] {json.dumps(response_data, ensure_ascii=False, indent=2)}")
+        return response_data
     except Exception as e:
         logging.error(traceback.format_exc())
         raise HTTPException(status_code=500, detail=f"분석 실패: {str(e)}")
@@ -252,6 +255,27 @@ async def analyze_food(file: UploadFile = File(...)):
         raise HTTPException(status_code=500, detail=f"음식 분석 실패: {str(e)}")
     finally:
         if os.path.exists(temp_path): os.remove(temp_path)
+
+# ---------------------------------------------------------
+# [기능 4] 약물 삭제
+# ---------------------------------------------------------
+@app.delete("/user/drug/{drug_id}")
+def delete_drug(drug_id: int):
+    """
+    복약 관리에서 약물을 삭제합니다.
+    """
+    print(f"🗑️ 약물 삭제 요청: ID {drug_id}")
+    try:
+        success = delete_user_drug(drug_id)
+        if success:
+            return {"status": "success", "message": "약물이 삭제되었습니다."}
+        else:
+            raise HTTPException(status_code=404, detail="약물을 찾을 수 없습니다.")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=f"삭제 실패: {str(e)}")
 
 if __name__ == "__main__":
     import uvicorn

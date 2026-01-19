@@ -28,33 +28,104 @@ export function ChatItem({
 
   if (item.type === "identify") {
     const p = item.payload;
-
     const bestId = p.best_match?.id;
     const bestName = p.best_match?.name;
+    const bestEffect = p.best_match?.effect;
+    const bestMethod = p.best_match?.administer_method;
 
     return (
-      <View style={[styles.bubble, styles.assistantBubble]}>
-        <Text style={styles.title}>🔎 약 식별 결과</Text>
-        <Text style={styles.small}>텍스트: {p.extracted_text}</Text>
-
-        {p.candidates.map((c) => (
-          <Text key={c.id} style={styles.small}>
-            • {c.name}
+      <View style={[styles.bubble, styles.assistantBubble, { width: "90%" }]}>
+        <Text style={[styles.title, { fontSize: 16, marginBottom: 12 }]}>🔎 약 식별 결과</Text>
+        {p.extracted_text && (
+          <Text style={[styles.small, { marginBottom: 12, color: '#888' }]}>
+            인식된 텍스트: {p.extracted_text}
           </Text>
-        ))}
-        {!!bestId && (
-          <Pressable
-            onPress={() => onAddPill?.({ id: bestId, name: bestName || "" })}
-            disabled={loading}
-            hitSlop={10}
-            style={({ pressed }) => [
-              styles.plusBtn,
-              (pressed || loading) && { transform: [{ scale: 0.92 }], opacity: 0.85 },
-              loading && { opacity: 0.4 },
-            ]}
+        )}
+
+        {/* Display all candidates with enhanced design */}
+        {p.candidates.map((c, idx) => (
+          <View
+            key={c.id}
+            style={{
+              marginBottom: 10,
+              padding: 12,
+              backgroundColor: idx === 0 ? '#f8f9ff' : '#fff',
+              borderRadius: 12,
+              borderWidth: idx === 0 ? 2 : 1,
+              borderColor: idx === 0 ? '#667eea' : '#e0e0e0',
+              shadowColor: "#000",
+              shadowOffset: { width: 0, height: 1 },
+              shadowOpacity: 0.05,
+              shadowRadius: 2,
+              elevation: 1
+            }}
           >
-            <Ionicons name="add" size={18} color="#111" />
-          </Pressable>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <View style={{ flex: 1, marginRight: 8 }}>
+                {/* Pill Name */}
+                <Text style={{ fontWeight: '700', fontSize: 15, color: '#333', marginBottom: 6 }}>
+                  {idx === 0 && '⭐ '}{c.name}
+                </Text>
+
+                {/* Effect */}
+                {c.effect && (
+                  <View style={{ flexDirection: 'row', alignItems: 'flex-start', marginBottom: 4 }}>
+                    <Text style={{ fontSize: 12, color: '#666', marginRight: 4 }}>💊</Text>
+                    <Text style={{ fontSize: 12, color: '#666', flex: 1 }} numberOfLines={2}>
+                      {c.effect}
+                    </Text>
+                  </View>
+                )}
+
+                {/* Administration Method */}
+                {c.administer_method && (
+                  <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
+                    <Text style={{ fontSize: 12, color: '#666', marginRight: 4 }}>📋</Text>
+                    <Text style={{ fontSize: 12, color: '#666', flex: 1 }} numberOfLines={3}>
+                      {c.administer_method}
+                    </Text>
+                  </View>
+                )}
+
+                {/* Score indicator */}
+                {idx === 0 && (
+                  <Text style={{ fontSize: 11, color: '#667eea', marginTop: 4, fontWeight: '600' }}>
+                    일치도: {c.score}%
+                  </Text>
+                )}
+              </View>
+
+              {/* Add button */}
+              {idx === 0 && bestId && (
+                <Pressable
+                  onPress={() => onAddPill?.({ id: bestId, name: bestName || "" })}
+                  disabled={loading}
+                  hitSlop={10}
+                  style={({ pressed }) => [
+                    {
+                      width: 36, height: 36, borderRadius: 18,
+                      backgroundColor: '#667eea',
+                      alignItems: 'center', justifyContent: 'center',
+                      shadowColor: "#667eea",
+                      shadowOffset: { width: 0, height: 2 },
+                      shadowOpacity: 0.3,
+                      shadowRadius: 4,
+                      elevation: 3
+                    },
+                    (pressed || loading) && { opacity: 0.7, transform: [{ scale: 0.95 }] },
+                  ]}
+                >
+                  <Ionicons name="add" size={22} color="#fff" />
+                </Pressable>
+              )}
+            </View>
+          </View>
+        ))}
+
+        {p.candidates.length === 0 && (
+          <Text style={[styles.msgText, { color: '#999', marginTop: 8 }]}>
+            약물을 찾을 수 없습니다. 다른 각도에서 더 선명한 사진을 찍어주세요.
+          </Text>
         )}
 
       </View>
