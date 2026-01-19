@@ -38,3 +38,7 @@ URL_DUR_EFFICACY = "https://apis.data.go.kr/1471000/DURPrdlstInfoService03/getEf
 
 # 서방정분할주의 (쪼개 먹으면 안 되는 약)
 URL_DUR_SPLIT = "https://apis.data.go.kr/1471000/DURPrdlstInfoService03/getSeobangjeongPartitnAtentInfoList03"
+
+# drug_api.py 호환용 별칭
+URL_DUR_DUPLICATE = URL_DUR_EFFICACY     # 효능군중복
+URL_DUR_PARTITION = URL_DUR_SPLIT        # 서방정분할주의

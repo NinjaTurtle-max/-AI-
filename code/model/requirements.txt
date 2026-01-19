@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # --- 1. 서버 및 API 구축 ---
 fastapi
 uvicorn
@@ -24,3 +25,14 @@ numpy
 # --- 6. 데이터 분석 및 핸들링 (기본 라이브러리) ---
 pandas
 matplotlib
+=======
+ultralytics>=8.0.0
+torch>=2.0.0
+torchvision>=0.15.0
+opencv-python>=4.8.0
+numpy>=1.24.0
+pyyaml>=6.0
+pillow>=9.5.0
+matplotlib>=3.7.0
+pandas>=2.0.0
+>>>>>>> c2b44649af3b7ebe2d04f55a702f3d5c3b12d16a
