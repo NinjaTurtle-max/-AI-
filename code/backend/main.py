@@ -351,9 +351,10 @@ def clear_user_drugs(user_id: str):
     """
     print(f"🗑️ [전체 삭제] 사용자 {user_id}의 약물 초기화")
     try:
-        success = clear_all_user_drugs(user_id)
-        if success:
-            return {"status": "success", "message": "모든 약물이 삭제되었습니다."}
+        deleted_count = clear_all_user_drugs(user_id)
+        if deleted_count >= 0:
+            print(f"✅ {deleted_count}개의 약물 데이터 삭제 완료")
+            return {"status": "success", "message": "모든 약물이 삭제되었습니다.", "count": deleted_count}
         else:
             raise HTTPException(status_code=500, detail="삭제 실패")
     except Exception as e:

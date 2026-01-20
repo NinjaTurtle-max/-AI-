@@ -70,7 +70,17 @@ export function useFoodAnalysis() {
         setError(null);
         try {
             const data = await analyzeFoodApi(uri);
-            setResult(data);
+
+            // Backend might return { error: "..." } even with 200 OK
+            if (data.error) {
+                console.error("Backend returned error:", data.error);
+                setError(typeof data.error === 'string' ? data.error : "분석 중 오류가 발생했습니다.");
+                setResult(null);
+            } else {
+                setResult(data);
+                // Debugging log
+                console.log("Food Analysis Result:", JSON.stringify(data));
+            }
         } catch (e) {
             console.error("Analysis failed", e);
             setError("분석에 실패했습니다. 다시 시도해주세요.");

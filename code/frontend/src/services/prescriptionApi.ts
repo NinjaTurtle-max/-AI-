@@ -1,4 +1,4 @@
-const BACKEND_URL = "http://127.0.0.1:8000";
+import { BACKEND_URL } from "../config";
 
 export async function analyzePrescriptionApi(imageUri: string, mode: "prescription" | "hospital_prescription" = "prescription"): Promise<any> {
 

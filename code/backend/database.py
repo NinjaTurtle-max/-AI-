@@ -204,8 +204,9 @@ def clear_all_user_drugs(user_id):
     cursor = conn.cursor()
     try:
         cursor.execute('DELETE FROM user_drugs WHERE user_id = ?', (user_id,))
+        deleted_count = cursor.rowcount
         conn.commit()
-        return True
+        return deleted_count
     finally:
         conn.close()
 

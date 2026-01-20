@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useMemo, useState, useEffect } from "react";
 import { addUserDrug, clearUserDrugs, getUserDrugs, UserDrug } from "../services/chatApi";
+import { BACKEND_URL } from "../config";
 import { useProfile } from "./ProfileContext"; // ProfileContext에서 user_id 가져오기
 
 export type Pill = {
@@ -71,7 +72,7 @@ export function PillsProvider({ children }: { children: React.ReactNode }) {
   const removePill = async (id: string) => {
     try {
       // Call backend API to delete from database
-      const response = await fetch(`${"http://127.0.0.1:8000"}/user/drug/${id}`, {
+      const response = await fetch(`${BACKEND_URL}/user/drug/${id}`, {
         method: "DELETE",
       });
 
@@ -90,7 +91,8 @@ export function PillsProvider({ children }: { children: React.ReactNode }) {
   const clearPills = async () => {
     // Optimistic Update
     setPills([]);
-    await clearUserDrugs(userId);
+    const deletedCount = await clearUserDrugs(userId);
+    console.log(`[삭제 완료] 총 ${deletedCount}개의 약물이 DB에서 삭제되었습니다.`);
   };
 
   const value = useMemo(

@@ -1,6 +1,5 @@
 import { IdentifyResult } from "../types/chat";
-
-export const BACKEND_URL = "http://127.0.0.1:8000";
+import { BACKEND_URL } from "../config";
 
 // Real pill identification using backend API
 export async function fakeIdentify(imageUri: string): Promise<IdentifyResult> {
@@ -75,7 +74,7 @@ export async function fakeIdentify(imageUri: string): Promise<IdentifyResult> {
   }
 }
 
-export async function callConsultationApi(drugName: string, topic: string): Promise<string> {
+export async function callConsultationApi(drugName: string, topic: string, userId: string = "test_user"): Promise<string> {
   try {
     const response = await fetch(`${BACKEND_URL}/consult`, {
       method: "POST",
@@ -83,6 +82,7 @@ export async function callConsultationApi(drugName: string, topic: string): Prom
       body: JSON.stringify({
         drug_name: drugName,
         topic: topic,
+        user_id: userId,
       }),
     });
 
@@ -101,8 +101,8 @@ export async function callConsultationApi(drugName: string, topic: string): Prom
 }
 
 // callConsultationByName은 이제 callConsultationApi와 사실상 동일하므로 재사용하거나 유지
-export async function callConsultationByName(drugName: string, topic: string): Promise<string> {
-  return callConsultationApi(drugName, topic);
+export async function callConsultationByName(drugName: string, topic: string, userId: string = "test_user"): Promise<string> {
+  return callConsultationApi(drugName, topic, userId);
 }
 
 // =========================================================
@@ -128,7 +128,6 @@ export interface UserDrug {
 }
 
 // ... existing code ...
-
 export async function saveUserProfile(profile: UserHistoryRequest): Promise<boolean> {
   try {
     const response = await fetch(`${BACKEND_URL}/user/profile`, {
@@ -214,15 +213,18 @@ export async function addUserDrug(userId: string, drugName: string, description:
   }
 }
 
-export async function clearUserDrugs(userId: string): Promise<boolean> {
+export async function clearUserDrugs(userId: string): Promise<number> {
   try {
     const response = await fetch(`${BACKEND_URL}/user/drugs/all/${userId}`, {
       method: "DELETE"
     });
 
-    return response.ok;
+    if (!response.ok) throw new Error("전체 삭제 실패");
+
+    const data = await response.json();
+    return data.count !== undefined ? data.count : 0;
   } catch (e) {
     console.error(e);
-    return false;
+    return 0;
   }
 }

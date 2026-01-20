@@ -40,9 +40,9 @@ def analyze_food_interaction(image_path, api_key, current_pill_name):
     
     응답 형식 (JSON):
     {{
-        "food_name": "음식 이름 (예: 자몽 주스)",
-        "ingredients": ["주요재료1", "주요재료2"],
-        "interaction_warning": "주의사항 (상호작용이 없으면 '안전함'이라고 출력, 위험하면 구체적 이유)",
+        "detected_items": ["음식 이름 (예: 자몽 주스)"],
+        "main_ingredients": ["주요재료1", "주요재료2"],
+        "warning_message": "주의사항 (상호작용이 없으면 '안전함'이라고 출력, 위험하면 구체적 이유)",
         "risk_level": "위험/주의/안전 중 1택"
     }}
     """
@@ -52,8 +52,8 @@ def analyze_food_interaction(image_path, api_key, current_pill_name):
         response = model.generate_content([prompt, img])
         content = response.text.strip()
 
-        # [디버깅] 원본 응답 확인 (필요시 주석 해제)
-        # print(f"🐛 Food Raw Output: {content}")
+        # [디버깅] 원본 응답 확인 (로그 활성화)
+        print(f"🐛 Food Raw Output: {content}")
 
         # JSON 클리닝 (Markdown 코드블록 제거)
         if "```json" in content:
@@ -67,9 +67,27 @@ def analyze_food_interaction(image_path, api_key, current_pill_name):
         # AI가 JSON을 망가뜨렸을 때 방어 로직
         print(f"❌ JSON 파싱 실패. 원본: {content}")
         return {
-            "food_name": "분석 실패",
-            "interaction_warning": "AI 응답을 해석할 수 없습니다.",
+            "detected_items": ["분석 실패"],
+            "warning_message": "AI 응답을 해석할 수 없습니다.",
             "risk_level": "알 수 없음"
         }
     except Exception as e:
-        return {"error": f"음식 분석 중 에러: {str(e)}"}
+        error_msg = str(e)
+        print(f"❌ 음식 분석 중 에러: {error_msg}")
+        
+        # [예외 처리] API 할당량 초과 (429) 시 테스트 데이터 반환
+        if "429" in error_msg or "Quota exceeded" in error_msg:
+            print("⚠️ API 할당량 초과! 테스트 데이터를 반환합니다.")
+            return {
+                "detected_items": ["테스트 음식 (김치찌개)"],
+                "main_ingredients": ["김치", "두부", "돼지고기", "대파"],
+                "warning_message": "API 사용량이 초과되어 테스트용 결과가 표시됩니다. (나트륨 주의)",
+                "risk_level": "주의"
+            }
+
+        # 그 외 에러
+        return {
+            "detected_items": ["분석 오류"],
+            "warning_message": f"서버 내부 오류: {error_msg}",
+            "risk_level": "알 수 없음"
+        }
